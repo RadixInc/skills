@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "radix-underwriting": {
+      "type": "http",
+      "url": "https://underwriting-mcp.radix.com/mcp"
+    }
+  }
+}

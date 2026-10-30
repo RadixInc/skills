@@ -1,0 +1,17 @@
+{
+  "name": "radix",
+  "owner": {
+    "name": "Radix"
+  },
+  "metadata": {
+    "description": "Agent skills for working with Radix MCP servers"
+  },
+  "plugins": [
+    {
+      "name": "radix-underwriting",
+      "source": "./plugins/underwriting",
+      "description": "Skills for the Radix Underwriting MCP server, with the server connection bundled.",
+      "version": "0.1.0"
+    }
+  ]
+}
