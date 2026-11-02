@@ -1,11 +1,16 @@
 name: release
 
-# Push a tag such as v0.2.0 to publish a release. The tag must equal the version in
-# plugins/*/.claude-plugin/plugin.json. The release attaches one uploadable zip per skill,
-# built from the same commit and the same folders the plugin serves.
+# Push a tag such as underwriting-v1.0.0 to publish a release for one plugin. The part before
+# "-v" is the plugin's folder under plugins/, and the version must equal the one in that plugin's
+# .claude-plugin/plugin.json. The release attaches one uploadable zip per skill, built from the
+# same commit and the same folders the plugin serves.
+#
+# After the versioned release, a rolling release named <plugin>-latest is repointed at this commit
+# and given the same files. The website links to its stable URLs:
+#   https://github.com/RadixInc/skills/releases/download/<plugin>-latest/<skill>.zip
 on:
   push:
-    tags: ["v*"]
+    tags: ["*-v[0-9]*.[0-9]*.[0-9]*"]
 
 permissions:
   contents: write
@@ -29,14 +34,45 @@ jobs:
 
       - run: python3 scripts/validate_skills.py
 
+      # Fails unless the tag matches the format, names a plugin in the marketplace and equals its version.
       - name: Build skill zips
         run: python3 scripts/build_skill_zips.py --out dist --tag "$GITHUB_REF_NAME"
 
-      - name: Create release
+      - name: Create versioned release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --verify-tag \
+            --latest=false \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
+
+      # Runs last, so a problem here can't block the versioned release above.
+      - name: Update rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          slug="${GITHUB_REF_NAME%-v*}"
+          alias="${slug}-latest"
+          notes="Rolling release for ${slug}: always the newest version, currently ${GITHUB_REF_NAME}. Link to these files for stable URLs. Past versions are separate releases."
+
+          git tag -f "$alias" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$alias"
+
+          if gh release view "$alias" >/dev/null 2>&1; then
+            gh release upload "$alias" dist/* --clobber
+            gh release edit "$alias" --notes "$notes" --latest=false
+            # Remove files from skills that no longer exist.
+            for asset in $(gh release view "$alias" --json assets --jq '.assets[].name'); do
+              if [ ! -e "dist/$asset" ]; then
+                gh release delete-asset "$alias" "$asset" --yes
+              fi
+            done
+          else
+            gh release create "$alias" dist/* \
+              --verify-tag \
+              --latest=false \
+              --title "${slug} (latest)" \
+              --notes "$notes"
+          fi

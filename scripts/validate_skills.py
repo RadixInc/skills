@@ -86,6 +86,7 @@ def check_json(path: Path) -> dict:
 def main() -> int:
     marketplace_path = ROOT / ".claude-plugin" / "marketplace.json"
     marketplace = check_json(marketplace_path)
+    skill_owner: dict[str, str] = {}
 
     for plugin in marketplace.get("plugins", []):
         plugin_dir = (ROOT / plugin.get("source", "")).resolve()
@@ -107,11 +108,19 @@ def main() -> int:
         if mcp.is_file():
             check_json(mcp)
 
+        # The folder name is the plugin's slug in release tags (underwriting-v1.0.0).
+        if not NAME_RE.match(plugin_dir.name):
+            fail(manifest, f"plugin folder '{plugin_dir.name}' must be lowercase kebab-case; release tags use it")
+
         skills_dir = plugin_dir / "skills"
         for child in sorted(skills_dir.iterdir()) if skills_dir.is_dir() else []:
             if child.is_dir():
                 skill_md = child / "SKILL.md"
                 if skill_md.is_file():
+                    # Skill names become zip names and public download URLs, so they stay unique across plugins.
+                    if child.name in skill_owner:
+                        fail(skill_md, f"skill '{child.name}' also exists in plugin '{skill_owner[child.name]}'")
+                    skill_owner[child.name] = plugin.get("name", plugin_dir.name)
                     check_skill(skill_md)
                 else:
                     fail(child, "skill folder has no SKILL.md")

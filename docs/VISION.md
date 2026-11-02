@@ -28,10 +28,10 @@ This repository is public. Everything committed here is visible to anyone and st
 ## Distribution
 
 - `plugins/<plugin>/skills/<name>/` is the only copy of each skill. The plugin and the downloadable zips are both built from it, never from a second copy.
-- The plugin version lives only in `plugin.json`. A `vX.Y.Z` tag on `main` equal to that version publishes a GitHub Release with one Claude.ai-uploadable zip per skill. See [releasing.md](releasing.md).
+- Each plugin is versioned and released on its own. Its version lives only in its `plugin.json`. A `<plugin>-vX.Y.Z` tag on `main` equal to that version publishes a GitHub Release with one Claude.ai-uploadable zip per skill, and updates a rolling `<plugin>-latest` release that the website links to. See [releasing.md](releasing.md).
+- Skill names are unique across plugins, because they are zip names and public download URLs.
 
 ## Open Questions
 
-- Versioning once a second plugin ships: the repo-wide tag becomes ambiguous, so tags probably take a plugin prefix.
 - When a second MCP server ships, whether skills that span servers live in their own plugin.
 - Who owns review for each plugin (CODEOWNERS entries need GitHub handles).

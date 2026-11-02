@@ -10,9 +10,11 @@ Also writes `manifest.json` (skill, plugin, version, sha256, size) and `SHA256SU
 directory, for the website and for download verification.
 
 Usage:
-    build_skill_zips.py --out dist [--tag v0.2.0]
+    build_skill_zips.py --out dist [--tag underwriting-v1.0.0]
 
-With --tag, every plugin's version in plugin.json must equal the tag without its leading "v".
+Without --tag, builds every plugin (a dry run for CI). With --tag, the tag names one plugin by its
+folder under plugins/ (`underwriting` for plugins/underwriting) and its version. The script builds
+only that plugin and fails unless the version equals the one in its plugin.json.
 """
 import argparse
 import hashlib
@@ -24,6 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+TAG_RE = re.compile(r"^(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)-v(?P<version>\d+\.\d+\.\d+)$")
 SKIP_NAMES = {".DS_Store", "__pycache__"}
 FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 
@@ -77,6 +80,7 @@ def build_zip(skill_dir: Path, version: str, out_path: Path) -> None:
 
 
 def load_plugins() -> list[tuple[str, str, Path]]:
+    """Return (plugin name, version, plugin dir) for every plugin in the marketplace."""
     marketplace = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
     plugins = []
     for entry in marketplace["plugins"]:
@@ -86,28 +90,48 @@ def load_plugins() -> list[tuple[str, str, Path]]:
     return plugins
 
 
+def skills_of(plugin_dir: Path) -> list[Path]:
+    skills_dir = plugin_dir / "skills"
+    return sorted(p for p in skills_dir.iterdir() if (p / "SKILL.md").is_file())
+
+
+def select_for_tag(plugins: list[tuple[str, str, Path]], tag: str) -> list[tuple[str, str, Path]]:
+    """Pick the one plugin a release tag names, and check the tag's version against plugin.json."""
+    match = TAG_RE.match(tag)
+    if not match:
+        raise BuildError(f"tag '{tag}' must look like <plugin>-vMAJOR.MINOR.PATCH, for example underwriting-v1.0.0")
+    chosen = [p for p in plugins if p[2].name == match["slug"]]
+    if not chosen:
+        known = ", ".join(sorted(p[2].name for p in plugins))
+        raise BuildError(f"tag '{tag}' names plugin folder '{match['slug']}', which is not in the marketplace (have: {known})")
+    plugin_name, version, _ = chosen[0]
+    if match["version"] != version:
+        raise BuildError(f"tag {tag} has version {match['version']} but {plugin_name} is {version} in plugin.json")
+    return chosen
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True, type=Path, help="output directory (created if missing)")
-    parser.add_argument("--tag", help="release tag, for example v0.2.0; must match every plugin version")
+    parser.add_argument("--tag", help="release tag, for example underwriting-v1.0.0; builds only that plugin")
     args = parser.parse_args()
 
     try:
-        plugins = load_plugins()
-        if args.tag:
-            for plugin_name, version, _ in plugins:
-                if args.tag != f"v{version}":
-                    raise BuildError(f"tag {args.tag} does not match {plugin_name} version {version} in plugin.json")
+        all_plugins = load_plugins()
+        # Skill names are zip names and public download URLs, so they must be unique across plugins
+        # even when this run builds only one of them.
+        owner: dict[str, str] = {}
+        for plugin_name, _, plugin_dir in all_plugins:
+            for skill_dir in skills_of(plugin_dir):
+                if skill_dir.name in owner:
+                    raise BuildError(f"skill '{skill_dir.name}' exists in both {owner[skill_dir.name]} and {plugin_name}")
+                owner[skill_dir.name] = plugin_name
+        plugins = select_for_tag(all_plugins, args.tag) if args.tag else all_plugins
 
         args.out.mkdir(parents=True, exist_ok=True)
         manifest = []
-        seen: dict[str, str] = {}
         for plugin_name, version, plugin_dir in plugins:
-            skills_dir = plugin_dir / "skills"
-            for skill_dir in sorted(p for p in skills_dir.iterdir() if (p / "SKILL.md").is_file()):
-                if skill_dir.name in seen:
-                    raise BuildError(f"skill '{skill_dir.name}' exists in both {seen[skill_dir.name]} and {plugin_name}")
-                seen[skill_dir.name] = plugin_name
+            for skill_dir in skills_of(plugin_dir):
                 out_path = args.out / f"{skill_dir.name}.zip"
                 build_zip(skill_dir, version, out_path)
                 digest = hashlib.sha256(out_path.read_bytes()).hexdigest()

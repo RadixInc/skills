@@ -23,7 +23,7 @@ The plugin includes the MCP server connection. Claude Code prompts you to authen
 
 ### Claude.ai and Claude Desktop
 
-Each [release](https://github.com/RadixInc/skills/releases/latest) attaches one zip per skill, for example `rent-roll-compare.zip`. Upload a zip under Customize > Skills. Zips don't include the server connection, so also add the Radix Underwriting server (`https://underwriting-mcp.radix.com/mcp`) as a connector in your Claude settings. `manifest.json` and `SHA256SUMS` in the release list every skill with its version and checksum.
+The [`underwriting-latest` release](https://github.com/RadixInc/skills/releases/tag/underwriting-latest) holds one zip per skill, for example `rent-roll-compare.zip`. Upload a zip under Customize > Skills. Zips don't include the server connection, so also add the Radix Underwriting server (`https://underwriting-mcp.radix.com/mcp`) as a connector in your Claude settings. `manifest.json` and `SHA256SUMS` in the release list every skill with its version and checksum.
 
 ### Other agents
 
