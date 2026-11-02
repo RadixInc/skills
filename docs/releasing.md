@@ -45,7 +45,11 @@ Zips don't carry the server connection that the plugin bundles in `.mcp.json`. T
 
 ## Tag rules
 
-The rolling release moves its `<plugin>-latest` tag with a force push on every release. If you add a ruleset that restricts tag updates, allow the `github-actions` bot to update `*-latest` tags, and restrict creation of `*-v*` tags to people who can release.
+A repository ruleset, "Release tags", covers tags matching `*-v<digit>*` (for example `underwriting-v1.0.0`). Only the repository Admin role can create, move or delete them. Everyone else with write access is blocked, so a release can't be started from an unreviewed branch.
+
+The ruleset deliberately doesn't match `<plugin>-latest`, so the release workflow can create and repoint those tags with its own token. The pattern requires a digit after `-v`, so a plugin such as `rent-vault` isn't caught by accident. Don't widen the pattern to `*-v*`.
+
+A tag can only be re-used after an Admin deletes it, so a failed release is retried by deleting the tag and pushing it again.
 
 ## Build locally
 
