@@ -25,9 +25,13 @@ This repository is public. Everything committed here is visible to anyone and st
 - Skills must not instruct the agent to bypass the MCP server's access controls or to exfiltrate data to third-party services.
 - Every change lands through a pull request with review. The validation workflow runs a secret scan on each PR.
 
+## Distribution
+
+- `plugins/<plugin>/skills/<name>/` is the only copy of each skill. The plugin and the downloadable zips are both built from it, never from a second copy.
+- The plugin version lives only in `plugin.json`. A `vX.Y.Z` tag on `main` equal to that version publishes a GitHub Release with one Claude.ai-uploadable zip per skill. See [releasing.md](releasing.md).
+
 ## Open Questions
 
-- Release cadence and versioning policy for the plugin (tag per release, or per skill change).
-- Whether to publish Claude.ai-uploadable zips per skill from CI.
+- Versioning once a second plugin ships: the repo-wide tag becomes ambiguous, so tags probably take a plugin prefix.
 - When a second MCP server ships, whether skills that span servers live in their own plugin.
 - Who owns review for each plugin (CODEOWNERS entries need GitHub handles).
