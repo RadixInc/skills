@@ -5,7 +5,13 @@
 1. Copy `templates/skill/` to `plugins/<plugin>/skills/<skill-name>/`.
 2. Edit `SKILL.md`. The `name` in the frontmatter must equal the folder name (lowercase kebab-case).
 3. Run `python3 scripts/validate_skills.py`.
-4. Open a pull request. Bump the plugin version in `plugins/<plugin>/.claude-plugin/plugin.json` and in `.claude-plugin/marketplace.json` when the change is customer-visible.
+4. Open a pull request. Don't touch any version: versions change only in a release PR (see [`releasing.md`](releasing.md)).
+
+## Frontmatter
+
+Use only these top-level keys: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. Claude.ai uploads reject any other key, and the validator enforces this.
+
+Don't put a `version` in a skill. The release build stamps the plugin's version into each zip as `metadata.version`, so a skill's version can't drift from the plugin's.
 
 ## Layout of a skill
 

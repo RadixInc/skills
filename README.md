@@ -21,6 +21,10 @@ Each skill is a folder with a `SKILL.md` that tells an agent which Radix MCP too
 
 The plugin includes the MCP server connection. Claude Code prompts you to authenticate the first time the server is used.
 
+### Claude.ai and Claude Desktop
+
+The [`underwriting-latest` release](https://github.com/RadixInc/skills/releases/tag/underwriting-latest) holds one zip per skill, for example `rent-roll-compare.zip`. Upload a zip under Customize > Skills. Zips don't include the server connection, so also add the Radix Underwriting server (`https://underwriting-mcp.radix.com/mcp`) as a connector in your Claude settings. `manifest.json` and `SHA256SUMS` in the release list every skill with its version and checksum.
+
 ### Other agents
 
 Copy the skill folders you want from `plugins/<plugin>/skills/` into your agent's skills directory, and connect the matching MCP server yourself.

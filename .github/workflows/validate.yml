@@ -17,6 +17,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 scripts/validate_skills.py
+      # Dry run of the release build, so a packaging problem fails the PR and not the tag.
+      - run: python3 scripts/build_skill_zips.py --out "$RUNNER_TEMP/dist"
+
+  # Runs Claude Code's own manifest checks. Not blocking yet: the CLI is installed unpinned.
+  # Pin a version and drop continue-on-error once it has run green a few times.
+  claude-validate:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global @anthropic-ai/claude-code
+      - run: claude plugin validate . --strict
+      - run: claude plugin validate plugins/underwriting --strict
 
   secrets:
     runs-on: ubuntu-latest

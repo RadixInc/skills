@@ -10,6 +10,9 @@ NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 MAX_NAME = 64
 MAX_DESCRIPTION = 1024
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# Claude.ai uploads, the Skills API and the Agent Skills spec reject any other top-level key.
+ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 
 errors: list[str] = []
 
@@ -50,6 +53,10 @@ def check_skill(skill_md: Path) -> None:
         return
     meta = parse_frontmatter(match.group(1))
 
+    for key in sorted(set(meta) - ALLOWED_FRONTMATTER_KEYS):
+        hint = " (the version comes from plugin.json and is stamped in at build time)" if key == "version" else ""
+        fail(skill_md, f"frontmatter key '{key}' is not allowed; Claude.ai uploads reject it{hint}")
+
     name = meta.get("name")
     description = meta.get("description")
     folder = skill_md.parent.name
@@ -79,6 +86,7 @@ def check_json(path: Path) -> dict:
 def main() -> int:
     marketplace_path = ROOT / ".claude-plugin" / "marketplace.json"
     marketplace = check_json(marketplace_path)
+    skill_owner: dict[str, str] = {}
 
     for plugin in marketplace.get("plugins", []):
         plugin_dir = (ROOT / plugin.get("source", "")).resolve()
@@ -89,18 +97,30 @@ def main() -> int:
         meta = check_json(manifest)
         if meta.get("name") != plugin.get("name"):
             fail(manifest, "name does not match marketplace.json")
-        if meta.get("version") != plugin.get("version"):
-            fail(manifest, "version does not match marketplace.json")
+        # plugin.json is the only place a version lives. Claude Code ignores the marketplace
+        # entry's version when plugin.json has one, and the docs say not to set both.
+        if "version" in plugin:
+            fail(marketplace_path, f"plugin '{plugin.get('name')}' sets a version; remove it, plugin.json owns the version")
+        if not SEMVER_RE.match(str(meta.get("version", ""))):
+            fail(manifest, "needs a `version` in MAJOR.MINOR.PATCH form")
 
         mcp = plugin_dir / ".mcp.json"
         if mcp.is_file():
             check_json(mcp)
+
+        # The folder name is the plugin's slug in release tags (underwriting-v1.0.0).
+        if not NAME_RE.match(plugin_dir.name):
+            fail(manifest, f"plugin folder '{plugin_dir.name}' must be lowercase kebab-case; release tags use it")
 
         skills_dir = plugin_dir / "skills"
         for child in sorted(skills_dir.iterdir()) if skills_dir.is_dir() else []:
             if child.is_dir():
                 skill_md = child / "SKILL.md"
                 if skill_md.is_file():
+                    # Skill names become zip names and public download URLs, so they stay unique across plugins.
+                    if child.name in skill_owner:
+                        fail(skill_md, f"skill '{child.name}' also exists in plugin '{skill_owner[child.name]}'")
+                    skill_owner[child.name] = plugin.get("name", plugin_dir.name)
                     check_skill(skill_md)
                 else:
                     fail(child, "skill folder has no SKILL.md")
