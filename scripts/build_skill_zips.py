@@ -59,10 +59,23 @@ def stamp_version(skill_md: str, version: str, where: str) -> str:
 
 
 def skill_files(skill_dir: Path) -> list[Path]:
-    return sorted(
-        p for p in skill_dir.rglob("*")
-        if p.is_file() and not any(part in SKIP_NAMES for part in p.relative_to(skill_dir).parts)
-    )
+    """List a skill's files. Symlinks and other non-regular entries fail the build.
+
+    A symlink would be read through to its target, which could be any file on the runner,
+    and the bytes would land in a public zip.
+    """
+    files = []
+    for path in skill_dir.rglob("*"):
+        rel = path.relative_to(skill_dir)
+        if any(part in SKIP_NAMES for part in rel.parts):
+            continue
+        if path.is_symlink():
+            raise BuildError(f"{skill_dir.name}/{rel.as_posix()} is a symlink; skills may contain regular files only")
+        if path.is_file():
+            files.append(path)
+        elif not path.is_dir():
+            raise BuildError(f"{skill_dir.name}/{rel.as_posix()} is not a regular file or folder")
+    return sorted(files)
 
 
 def build_zip(skill_dir: Path, version: str, out_path: Path) -> None:
@@ -85,6 +98,8 @@ def load_plugins() -> list[tuple[str, str, Path]]:
     plugins = []
     for entry in marketplace["plugins"]:
         plugin_dir = (ROOT / entry["source"]).resolve()
+        if not plugin_dir.is_relative_to(ROOT):
+            raise BuildError(f"plugin source '{entry['source']}' resolves outside the repository")
         manifest = json.loads((plugin_dir / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         plugins.append((manifest["name"], manifest["version"], plugin_dir))
     return plugins
@@ -92,7 +107,13 @@ def load_plugins() -> list[tuple[str, str, Path]]:
 
 def skills_of(plugin_dir: Path) -> list[Path]:
     skills_dir = plugin_dir / "skills"
-    return sorted(p for p in skills_dir.iterdir() if (p / "SKILL.md").is_file())
+    skills = []
+    for path in skills_dir.iterdir():
+        if path.is_symlink():
+            raise BuildError(f"{path.relative_to(ROOT).as_posix()} is a symlink; skills may contain regular files only")
+        if (path / "SKILL.md").is_file():
+            skills.append(path)
+    return sorted(skills)
 
 
 def select_for_tag(plugins: list[tuple[str, str, Path]], tag: str) -> list[tuple[str, str, Path]]:

@@ -22,6 +22,8 @@ Don't put a `version` in a skill. The release build stamps the plugin's version 
 └── scripts/        # optional: helper scripts, kept small and reviewed carefully
 ```
 
+A skill folder holds regular files only. Symlinks fail the validator and the build, because a zip would package whatever file the link points at.
+
 ## Writing the description
 
 The `description` decides whether the agent picks the skill. Say what the skill does and when to use it, and include the words a customer is likely to use and the MCP tools involved. Keep it under 1024 characters.
