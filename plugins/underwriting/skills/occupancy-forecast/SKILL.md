@@ -11,7 +11,7 @@ It is **committed-only**: it counts only changes that are already on paper. It n
 
 ## Ground rules
 
-These come from the Radix MCP's own instructions, and clients rely on them:
+These are this skill's rules. They build on the Radix MCP server's own guidance (report figures as returned, answer only what was asked, don't interpret performance or recommend actions unless asked), and clients rely on them:
 
 - **Figures only.** Report the forward figures and what drives them. Don't characterize performance, predict renewals, estimate re-leasing, or recommend actions unless the user explicitly asks. If the user wants expected renewals or new leasing built in, explain that this view counts committed changes only. Point them to the expiration schedule, and offer to show the deal's past renewal rate with the rent-roll-compare skill (if installed) so they can apply their own assumption.
 - **Server figures are reported as returned.** Today's occupancy % comes from the server. Don't recompute it. Forward figures are derived from unit rows; label them as derived and show the counts behind them. Display percentages to 1 dp, as Radix does.
@@ -30,7 +30,7 @@ These come from the Radix MCP's own instructions, and clients rely on them:
 
 **Today's occupancy (server):** `get_floor_plan_summary` (`groupBy: "unitMix"`). Use its total `occupiedPct` and unit counts as Day 0.
 
-**Unit rows:** `get_rent_roll_units`, `limit: 200`, paging with `nextOffset` until it's absent. Keep `includeFutureLeases` at its default (true) so pre-leased vacant units are included. Request these `fields`:
+**Unit rows:** `get_rent_roll_units`, `limit: 200`. Keep `includeFutureLeases` at its default (true) so pre-leased vacant units are included. Request these `fields`:
 
 ```
 unitId, floorPlanCode, numberOfBeds, occupancyStatusName, leaseExpiration, moveOutDate,
@@ -39,6 +39,28 @@ futureLeaseHasNoticeToVacate
 ```
 
 Keep `totalUnits`, `rentRollAgeDays` and the `dataQuality` flags.
+
+**Getting every unit (paging).** Page with `offset` = `nextOffset` until it's absent. If the server refuses `offset` (it has returned "units past the first page are not available here yet"), partition the rent roll with filters so each slice is ≤ 200 units, and combine the slices:
+- Split by `beds` first (one call per bedroom count from the unit-mix summary).
+- If a slice still reports `truncated: true`, split it further by `renovated: true/false`, then by `occupancy: "occupied"` plus a separate call for the rest.
+- De-duplicate on `unitId`.
+
+Note: `occupancy: "vacant"` can also return Non-Revenue units. Always classify occupancy from each unit's `occupancyStatusName`, not from the filter used to fetch it.
+
+**Completeness check (always).** The number of distinct units you have must equal `totalUnits`. If it doesn't, don't build the forecast from a partial rent roll: stop and tell the user the forecast would be incomplete, how many units are missing, and from which slice.
+
+Responses for a full rent roll are large. When a result is saved to a file instead of returned inline, parse it with a script (Python) rather than reading it into the conversation.
+
+## Step 2b: Check that notice to vacate is available
+
+Unit rows omit null fields, so a deal's rent roll can carry `hasNoticeToVacate` and `futureLeaseHasNoticeToVacate` on zero units. If that happens, every unit would read as "no notice" and the forecast would overstate occupancy without warning.
+
+Before building timelines, count the units carrying each of the two fields:
+
+- **Either field is present on at least one unit:** use notice to vacate as described in Step 3. Basis: "Notice to vacate from the rent roll."
+- **Both are present on 0 units:** notice to vacate is unavailable for this rent roll. Fall back to `moveOutDate`: treat an occupied unit with a `moveOutDate` as having given notice, moving out on that date. Basis: "Scheduled move-outs (notice to vacate not in this rent roll; units with a move-out date)."
+
+Everywhere below, "notice" means whichever basis applies. Report the basis used in the data notes.
 
 ## Step 3: Build each unit's timeline
 
@@ -91,29 +113,6 @@ Occupied leases expiring in each window (Day 0–30, 31–60, 61–90) with **no
 Day 0 and Day 90 physical occupancy, plus unconfirmed expirations, per bedroom count.
 
 ### 6. Data notes
-Rent roll age, any true `dataQuality` flags (missing move-out, expiration or future-lease dates directly affect this view), and the count in each "date unknown" bucket. Keep it short.
+Rent roll age, the notice basis used (Step 2b), any true `dataQuality` flags (missing move-out, expiration or future-lease dates directly affect this view), and the count in each "date unknown" bucket. Keep it short.
 
 After the summary, offer the unit lists behind any line (e.g., "the 9 notice units not yet backfilled"). Don't print them by default.
-
-## Example
-
-**User:** "What does occupancy look like over the next 90 days at Parkview Commons?"
-
-**Shape of the answer:**
-
-> **Parkview Commons** · Austin, TX · 248 units · rent roll as of 2026-09-30 (27 days old) · Account: Acme Capital
->
-> | | Sep 30 | Oct 30 | Nov 29 | Dec 29 |
-> |---|---|---|---|---|
-> | Occupied | 236 | 233 | 231 | 230 |
-> | Physical occupancy | 95.2% | 94.0% | 93.1% | 92.7% |
->
-> **Day 30:** 236 − 9 move-outs + 6 move-ins (4 into vacant units, 2 backfilling notices) = 233
-> ...
-> **Leased occupancy (Sep 30):** 96.8% · **Exposure:** 14 units (5.6%)
->
-> **Unconfirmed expirations (counted as occupied above):** 11 (Days 0–30) · 17 (31–60) · 15 (61–90) · plus 6 month-to-month
->
-> Want the unit list behind any of these?
-
-The numbers above are illustrative only. Every figure in a real answer comes from the tools or is derived from unit rows as described.

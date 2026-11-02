@@ -11,7 +11,7 @@ The audience is acquisitions analysts, asset managers, brokers and lenders. They
 
 ## Ground rules
 
-These come from the Radix MCP's own instructions, and clients rely on them:
+These are this skill's rules. They build on the Radix MCP server's own guidance (report figures as returned, answer only what was asked, don't interpret performance or recommend actions unless asked), and clients rely on them:
 
 - **Figures only.** Report what changed. Don't characterize performance ("strong", "concerning"), explain why, or recommend actions, unless the user explicitly asks for analysis. Neutral labels like "increase" or "decrease" are fine.
 - **Server figures are reported as returned.** Never recompute a figure the server already gives you, such as occupancy %, average rents, % of market or the `comparison` block. Round only for display, the way Radix does: percentages to 1 dp, $ to whole dollars. When the server gives a change value, use it. When it gives only the two values (e.g. per-bedroom rows), the change is B − A of the server values (see section 4).
@@ -73,7 +73,7 @@ Before calculating anything:
   - **Collision check:** if two different units in the same rent roll produce the same key, normalization is unsafe for them. Match those units on their raw `unitId` only and list them in Data notes.
   - **Report both rates** in Data notes: raw match % and normalized match %, e.g. "Unit IDs were formatted differently (`201` vs `0201`); 96 of 324 matched as-is, 324 of 324 after normalizing."
 - **Unit count.** If `totalUnits` differs between A and B, or fewer than ~95% of units match **after normalization**, report it. If under ~80% match after normalization, report the headline comparison only and explain why the unit-level sections were skipped.
-- **Data quality flags.** List any `dataQuality` flags that are true on either rent roll. Also check per-unit fields: the rent-roll-wide `hasMissingLeaseStart` flag can say `false` while every unit has `missingLeaseStart: true` and no `leaseStart`. Trust the per-unit values, and report the mismatch.
+- **Data quality flags.** List any `dataQuality` flags that are true on either rent roll. Also check per-unit fields such as `missingLeaseStart`. If a rent-roll-wide flag disagrees with the per-unit values, trust the per-unit values and report the mismatch.
 - **Fields that come back empty.** Unit rows omit null fields, so a field can be absent on every unit. Before classifying, count how many units carry each of `leaseStart`, `hasNoticeToVacate`, `futureContractualRent`, `recurringConcession`, `upfrontConcession`, `otherConcession`. Any field present on 0 units is unavailable for this rent roll; use the fallbacks below and say so.
 
 ### Concessions
@@ -87,11 +87,11 @@ Net effective rent may not net out `otherConcession` (`netEffectiveRent` can equ
 | Missing field | Fallback | Label it as |
 |---|---|---|
 | `leaseStart` | A new lease term = `leaseExpiration` changed (same `moveInDate`, not month-to-month in B) | "Renewal identified from a changed lease expiration (lease start not in source)" |
-| `hasNoticeToVacate` | Occupied units with a `moveOutDate` | "Scheduled move-outs (Radix does not capture notice to vacate; units with a move-out date)" |
+| `hasNoticeToVacate` | Occupied units with a `moveOutDate` | "Scheduled move-outs (notice to vacate not in this rent roll; units with a move-out date)" |
 | All three concession fields | Charge codes that start with `con` (e.g. `conemply`, `conoffcr`) | "Concessions from charge codes" |
 | `futureContractualRent` | Report the count of signed future leases (`isFutureLease`) and their `futureMoveInDate`s only | "Future lease rent not available" |
 
-Radix standardizes occupancy to **Occupied, Vacant and Non-Revenue** only. Notice to vacate is not captured today, so never present a notice-to-vacate count as if it came from the rent roll.
+Radix standardizes occupancy to **Occupied, Vacant and Non-Revenue** only; notice to vacate is a separate unit field. Whether it's populated depends on the deal's rent roll: if `hasNoticeToVacate` is present on at least one unit, use it; otherwise use the `moveOutDate` fallback above and label it as such. Never present a scheduled move-out count as a notice-to-vacate count.
 
 ## Step 4: Classify each unit
 
@@ -173,33 +173,3 @@ After the summary, offer the unit lists behind any figure (e.g., "the 14 units t
 ## Comparing two different deals
 
 If the user asks to compare two different properties, unit matching doesn't apply. Run `get_floor_plan_summary` (`groupBy: "unitMix"`) for each deal and show them side by side: units, occupancy %, market rent, in-place rent and % of market, in total and by bedroom count, with each deal's as-of date. Add month-to-month and notice/scheduled move-out counts from `get_rent_roll_units`. Point out if the as-of dates are more than ~60 days apart, since the figures then reflect different points in the leasing season.
-
-## Example
-
-**User:** "How did leasing go at Parkview Commons between the March and September rent rolls?"
-
-**Shape of the answer:**
-
-> **Parkview Commons** · Austin, TX · 248 units · 2026-03-31 → 2026-09-30 (183 days) · Account: Acme Capital
->
-> **Headline changes**
-> | | Mar 31 | Sep 30 | Change |
-> |---|---|---|---|
-> | Occupancy | 93.1% | 95.2% | +2.0 pts |
-> | Avg in-place rent | $1,612 | $1,655 | +$43 (+2.7%) |
-> ...
->
-> **Unit movement:** 31 move-ins, 26 move-outs, net absorption +5 (ties to occupied change). Renewed 48, new resident 21 → renewal rate 69.6% (48 of 69).
->
-> **Lease trade-out (derived from 69 matched units):** renewals +$38 (+2.4%, 48 units); new leases −$12 (−0.7%, 21 units); blended +$23 (+1.4%). 2 units left out (missing rent on A).
->
-> **By bedroom**
-> | Beds | Occupancy | In-place rent |
-> |---|---|---|
-> | 1BR | 94.0% → 96.1% (+2.1 pts) | $1,402 → $1,441 (+$39, +2.8%) |
-> ...
->
-> Want the list of units behind any of these?
-
-The numbers above are illustrative only. Every figure in a real answer comes from the tools or is derived from unit rows as described.
-
