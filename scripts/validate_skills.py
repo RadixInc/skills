@@ -75,6 +75,18 @@ def check_skill(skill_md: Path) -> None:
         fail(skill_md, f"description is {len(description)} characters, limit is {MAX_DESCRIPTION}")
 
 
+def check_regular_files(skill_dir: Path) -> None:
+    """Skills ship as zips, and a symlink would be read through to its target. Allow regular files only."""
+    for path in sorted(skill_dir.rglob("*")):
+        rel = path.relative_to(skill_dir)
+        if any(part in {".DS_Store", "__pycache__"} for part in rel.parts):
+            continue
+        if path.is_symlink():
+            fail(path, "is a symlink; skills may contain regular files only")
+        elif not (path.is_file() or path.is_dir()):
+            fail(path, "is not a regular file or folder")
+
+
 def check_json(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -90,6 +102,9 @@ def main() -> int:
 
     for plugin in marketplace.get("plugins", []):
         plugin_dir = (ROOT / plugin.get("source", "")).resolve()
+        if not plugin_dir.is_relative_to(ROOT):
+            fail(marketplace_path, f"plugin '{plugin.get('name')}' source resolves outside the repository")
+            continue
         manifest = plugin_dir / ".claude-plugin" / "plugin.json"
         if not manifest.is_file():
             fail(marketplace_path, f"plugin '{plugin.get('name')}' has no {manifest.relative_to(ROOT)}")
@@ -114,7 +129,11 @@ def main() -> int:
 
         skills_dir = plugin_dir / "skills"
         for child in sorted(skills_dir.iterdir()) if skills_dir.is_dir() else []:
+            if child.is_symlink():
+                fail(child, "is a symlink; skills may contain regular files only")
+                continue
             if child.is_dir():
+                check_regular_files(child)
                 skill_md = child / "SKILL.md"
                 if skill_md.is_file():
                     # Skill names become zip names and public download URLs, so they stay unique across plugins.

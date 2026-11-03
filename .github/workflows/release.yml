@@ -21,12 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Full history, so origin/main is available for the check below.
           fetch-depth: 0
+          # The token is passed to the steps that need it, not left in .git/config for later steps.
+          persist-credentials: false
 
       - name: Tag must be on main
-        run: |
-          git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - uses: actions/setup-python@v5
         with:
@@ -57,8 +58,14 @@ jobs:
           alias="${slug}-latest"
           notes="Rolling release for ${slug}: always the newest version, currently ${GITHUB_REF_NAME}. Link to these files for stable URLs. Past versions are separate releases."
 
-          git tag -f "$alias" "$GITHUB_SHA"
-          git push --force origin "refs/tags/$alias"
+          # Repoint the alias tag through the API, so git needs no credentials.
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${alias}" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${alias}" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${alias}" -f sha="$GITHUB_SHA" >/dev/null
+          fi
 
           if gh release view "$alias" >/dev/null 2>&1; then
             gh release upload "$alias" dist/* --clobber
