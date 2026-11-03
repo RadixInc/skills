@@ -39,7 +39,7 @@ https://github.com/RadixInc/skills/releases/download/underwriting-latest/<skill>
 https://github.com/RadixInc/skills/releases/download/underwriting-latest/manifest.json
 ```
 
-A new plugin gets its own `<plugin>-latest` on its first release, with no website change to existing links. Don't use GitHub's `releases/latest`: with several plugins it points at whichever released last, and the workflow marks every release `--latest=false`.
+A new plugin gets its own `<plugin>-latest` on its first release, with no website change to existing links. Don't use GitHub's `releases/latest`. It is a single repo-wide pointer, so with several plugins it can sit on any plugin's versioned release. The workflow passes `--latest=false`, but GitHub still showed `underwriting-v1.0.0` as the latest release after the first run.
 
 Zips don't carry the server connection that the plugin bundles in `.mcp.json`. The download page needs to tell people to add the Radix Underwriting server (`https://underwriting-mcp.radix.com/mcp`) as a connector in Claude.
 
