@@ -19,7 +19,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history, so origin/main is available for the check below.
           fetch-depth: 0
@@ -29,7 +29,7 @@ jobs:
       - name: Tag must be on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
