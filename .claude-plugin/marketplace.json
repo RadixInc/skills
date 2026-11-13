@@ -11,11 +11,6 @@
       "name": "radix-underwriting",
       "source": "./plugins/underwriting",
       "description": "Skills for the Radix Underwriting MCP server, with the server connection bundled."
-    },
-    {
-      "name": "radix-analytics",
-      "source": "./plugins/radix-analytics",
-      "description": "Skills for the Radix Analytics MCP server: portfolio, competitive set, pricing, leasing, concessions and reporting playbooks."
     }
   ]
 }
