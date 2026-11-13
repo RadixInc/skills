@@ -1,6 +1,6 @@
 {
   "name": "radix-underwriting",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Skills for the Radix Underwriting MCP server, with the server connection bundled.",
   "author": {
     "name": "Radix Software, Inc."
