@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Release workflow: `<plugin>-latest` is now the ref the Claude plugin directory tracks. The workflow only moves it forward, fails if the move didn't land, and writes the result to the job summary. `docs/releasing.md` covers the directory webhook and how to check a release reached the directory.
 ## 1.0.2
 
 - `radix-underwriting`: added `documentationUrl` (radix.com/mcp-underwriting) and `termsOfServiceUrl` to `plugin.json` for the directory listing, and linked documentation, privacy policy and terms from the plugin README.
