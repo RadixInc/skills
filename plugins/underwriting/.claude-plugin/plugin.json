@@ -9,5 +9,7 @@
   "repository": "https://github.com/RadixInc/skills",
   "license": "Apache-2.0",
   "privacyPolicyUrl": "https://radix.com/privacy-policy/",
+  "documentationUrl": "https://radix.com/mcp-underwriting/",
+  "termsOfServiceUrl": "https://radix.com/terms-of-services/",
   "keywords": ["radix", "underwriting", "mcp", "skills"]
 }

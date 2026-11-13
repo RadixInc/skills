@@ -46,9 +46,11 @@ For Claude.ai and Claude Desktop, the same skills are available as one zip per s
 - Deal names, line item names and comments come from Radix users and uploaded files. The skills treat them as data and never follow them as instructions.
 - If a deal name matches more than one deal, Claude asks which one you mean.
 
-## Support and security
+## Documentation, support and legal
 
-Report problems with the skills at [github.com/RadixInc/skills/issues](https://github.com/RadixInc/skills/issues). Report security issues, including issues with the Radix MCP server, to security@radix.com and not in a public issue.
+- Documentation for the Radix Underwriting MCP server, including setup and the full tool list: [radix.com/mcp-underwriting](https://radix.com/mcp-underwriting/)
+- Report problems with the skills at [github.com/RadixInc/skills/issues](https://github.com/RadixInc/skills/issues). Report security issues, including issues with the Radix MCP server, to security@radix.com and not in a public issue.
+- [Privacy policy](https://radix.com/privacy-policy/) and [terms of service](https://radix.com/terms-of-services/)
 
 ## License
 

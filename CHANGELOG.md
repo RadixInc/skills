@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `radix-underwriting`: added `documentationUrl` (radix.com/mcp-underwriting) and `termsOfServiceUrl` to `plugin.json` for the directory listing, and linked documentation, privacy policy and terms from the plugin README.
 ## 1.0.1
 
 - `radix-underwriting`: added a plugin README (skills, endpoint, what data goes where, install, support), an icon, and `privacyPolicyUrl`, so the plugin folder is self-contained for the Claude plugin directory. The plugin author and marketplace owner are now "Radix Software, Inc." Removed `skills/README.md`, whose links pointed outside the plugin folder.
