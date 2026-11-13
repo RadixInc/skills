@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1
+
 - `radix-underwriting`: added a plugin README (skills, endpoint, what data goes where, install, support), an icon, and `privacyPolicyUrl`, so the plugin folder is self-contained for the Claude plugin directory. The plugin author and marketplace owner are now "Radix Software, Inc." Removed `skills/README.md`, whose links pointed outside the plugin folder.
 - `occupancy-forecast`: falls back to partitioning by filters when the server won't page, and stops if the units returned don't match `totalUnits`. Checks whether notice to vacate is present on any unit and falls back to `moveOutDate` if not, reporting the basis used. Example removed.
 - `rent-roll-compare`: notice-to-vacate handling now matches `occupancy-forecast` (use the field when present, otherwise the `moveOutDate` fallback). Dropped the version-specific `hasMissingLeaseStart` claim. Example removed.
