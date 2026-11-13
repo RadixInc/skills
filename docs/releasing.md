@@ -43,11 +43,36 @@ A new plugin gets its own `<plugin>-latest` on its first release, with no websit
 
 Zips don't carry the server connection that the plugin bundles in `.mcp.json`. The download page needs to tell people to add the Radix Underwriting server (`https://underwriting-mcp.radix.com/mcp`) as a connector in Claude.
 
+## Claude plugin directory
+
+A plugin listed in the Claude plugin directory follows one ref in this repository, and the directory scans the newest commit on it as a new version. We track the rolling tag, `<plugin>-latest` (for underwriting, `underwriting-latest`), with a repository push webhook so a new version is picked up within minutes. The directory also checks the tracked ref about every 6 hours without the webhook.
+
+What that means for a release:
+
+1. The release workflow moves `<plugin>-latest` to the released commit as its last step. That move is what publishes to the directory, so there is nothing extra to do in the portal.
+2. The tag only moves forward. Re-running an older release leaves it alone, and the job fails if the tag didn't land on the released commit.
+3. Each version is scanned again. While a policy hold applies (today, the publisher name), a reviewer publishes the version, so allow time after the tag.
+4. Raise `version` in `plugin.json` for every release, as above. The directory and Claude Code both key off it.
+
+Don't move `<plugin>-latest` by hand. Whatever commit it points at is scanned and, if it passes, published.
+
+### Setting up the webhook
+
+After the plugin is submitted, the portal gives a URL and a secret. In the repository settings, add them as a webhook for push events. This needs repository admin access. The portal notes that the Claude GitHub App will replace push webhooks, so expect to swap this later.
+
+### Checking that a release reached the directory
+
+- The `release` job summary names the commit `<plugin>-latest` now points at.
+- Settings > Webhooks > Recent Deliveries shows whether GitHub sent a push event when the tag moved.
+- The plugin's page in the developer portal shows the new version. If it doesn't appear, use Check for new commits on that page.
+
+If the directory doesn't pick up a moved tag, the fallback is to set the portal's Tracked branch or tag to the versioned tag (`underwriting-v1.0.3`) on each release. The directory's docs say that a tag "stays on its commit until you change the tag" and don't say what happens when a tag is moved, so confirm it after the first release that moves the tag.
+
 ## Tag rules
 
 A repository ruleset, "Release tags", covers tags matching `*-v<digit>*` (for example `underwriting-v1.0.0`). Only the repository Admin role can create, move or delete them. Everyone else with write access is blocked, so a release can't be started from an unreviewed branch.
 
-The ruleset deliberately doesn't match `<plugin>-latest`, so the release workflow can create and repoint those tags with its own token. The pattern requires a digit after `-v`, so a plugin such as `rent-vault` isn't caught by accident. Don't widen the pattern to `*-v*`.
+The ruleset deliberately doesn't match `<plugin>-latest`, so the release workflow can create and repoint those tags with its own token. Anyone with write access can therefore also move them, and the directory publishes whatever a rolling tag points at (see above). The pattern requires a digit after `-v`, so a plugin such as `rent-vault` isn't caught by accident. Don't widen the pattern to `*-v*`.
 
 A tag can only be re-used after an Admin deletes it, so a failed release is retried by deleting the tag and pushing it again.
 

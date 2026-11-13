@@ -8,6 +8,10 @@ name: release
 # After the versioned release, a rolling release named <plugin>-latest is repointed at this commit
 # and given the same files. The website links to its stable URLs:
 #   https://github.com/RadixInc/skills/releases/download/<plugin>-latest/<skill>.zip
+#
+# The <plugin>-latest tag is also the ref the Claude plugin directory tracks. Moving it publishes
+# to the directory, so it only ever moves forward, and the job fails if it didn't move. See
+# docs/releasing.md.
 on:
   push:
     tags: ["*-v[0-9]*.[0-9]*.[0-9]*"]
@@ -59,6 +63,14 @@ jobs:
           alias="${slug}-latest"
           notes="Rolling release for ${slug}: always the newest version, currently ${GITHUB_REF_NAME}. Link to these files for stable URLs. Past versions are separate releases."
 
+          # Re-running an older release must not roll the alias tag, the rolling release or the
+          # directory listing back to it.
+          newest="$(git tag --list "${slug}-v[0-9]*" | sort -V | tail -n 1)"
+          if [ "$newest" != "$GITHUB_REF_NAME" ]; then
+            echo "::notice::${GITHUB_REF_NAME} is not the newest ${slug} release (${newest}), so ${alias} was left alone."
+            exit 0
+          fi
+
           # Repoint the alias tag through the API, so git needs no credentials.
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${alias}" >/dev/null 2>&1; then
             gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${alias}" \
@@ -66,6 +78,13 @@ jobs:
           else
             gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
               -f ref="refs/tags/${alias}" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          # The directory follows this tag, so a move that didn't land must fail the job.
+          actual="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${alias}" --jq .object.sha)"
+          if [ "$actual" != "$GITHUB_SHA" ]; then
+            echo "::error::${alias} points at ${actual}, expected ${GITHUB_SHA}"
+            exit 1
           fi
 
           if gh release view "$alias" >/dev/null 2>&1; then
@@ -84,3 +103,9 @@ jobs:
               --title "${slug} (latest)" \
               --notes "$notes"
           fi
+
+          {
+            echo "### Rolling tag"
+            echo "\`${alias}\` now points at \`${GITHUB_SHA}\` (${GITHUB_REF_NAME})."
+            echo "The Claude plugin directory tracks this tag. Check the repository webhook's Recent Deliveries for the push event."
+          } >> "$GITHUB_STEP_SUMMARY"
