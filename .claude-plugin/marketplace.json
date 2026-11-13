@@ -1,7 +1,7 @@
 {
   "name": "radix",
   "owner": {
-    "name": "Radix"
+    "name": "Radix Software, Inc."
   },
   "metadata": {
     "description": "Agent skills for working with Radix MCP servers"
