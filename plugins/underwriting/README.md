@@ -1,6 +1,6 @@
 # Radix Underwriting
 
-Skills for the Radix Underwriting MCP server. The plugin connects Claude to the server and adds three ready-made workflows for multifamily underwriting, so the agent runs each analysis the same way every time without you writing the prompt.
+Skills for the Radix Underwriting MCP server. The plugin connects Claude to the server and adds ready-made workflows for multifamily underwriting, so the agent runs each analysis the same way every time without you writing the prompt.
 
 You need access to the Radix Underwriting MCP server through your organization's Radix agreement. The plugin does not grant access. Your Radix account and the server's permissions still apply.
 
@@ -8,11 +8,12 @@ You need access to the Radix Underwriting MCP server through your organization's
 
 | Skill | What it does |
 | --- | --- |
+| `create-deal-from-docs` | Creates a deal from whatever you have on a property: an OM, flyer, broker email, property website link, or just a rent roll and T12. Fills the deal fields your documents state, uploads any rent roll or T12 to the new deal, and reports every value with its source. Asks once whether it may look up missing details online. |
 | `expense-benchmark` | Compares a deal's operating expenses (T12 actuals or an underwritten budget) with its 10 closest comparable deals in your account. Shows each expense category per unit next to the comp weighted average, median and range, and lists categories outside the range. |
 | `occupancy-forecast` | Builds a 30/60/90-day occupancy view from the latest rent roll, using only committed changes: signed future leases, notices to vacate, and backfilled vacant units. Lease expirations with no confirmed outcome are listed separately. |
 | `rent-roll-compare` | Compares two rent rolls for the same deal and reports what changed, unit by unit: occupancy, move-ins and move-outs, renewals versus new leases, lease trade-out, concessions, month-to-month and notice exposure. |
 
-Claude uses a skill when your request matches it, for example "how do this property's expenses compare to comps?", "what will occupancy look like next quarter?", or "what changed since the last rent roll?".
+Claude uses a skill when your request matches it, for example "how do this property's expenses compare to comps?", "what will occupancy look like next quarter?", or "what changed since the last rent roll?", or "set up a deal from this OM".
 
 ## What the plugin connects to
 
@@ -22,7 +23,9 @@ The plugin declares one remote MCP server in `.mcp.json`:
 | --- | --- |
 | Radix Underwriting | `https://underwriting-mcp.radix.com/mcp` |
 
-The skills tell Claude to call this server's tools to find a deal and read its details, operating statements, expense comp sets, rent roll units and floor plan summaries. Deal data is sent between Claude and the Radix server in those calls. The skills do not send data to any other service.
+The skills tell Claude to call this server's tools to find a deal and read its details, operating statements, expense comp sets, rent roll units and floor plan summaries. `create-deal-from-docs` also creates and updates deals and uploads the rent rolls and T12s you attach. Deal data is sent between Claude and the Radix server in those calls.
+
+The skills send deal data to no other service. The one exception is a web lookup in `create-deal-from-docs`, and only if you allow it when the skill asks: Claude may search the web using just the property's name and address, to find details your documents don't include, such as the property website or management company. Nothing else from your documents goes into a search.
 
 The plugin contains no hooks, scripts, executables or package installs. It is Markdown instructions plus the server connection.
 
