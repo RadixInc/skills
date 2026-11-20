@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `ic-memo` (new): one-page IC memo as PDF and Word, built from Radix rent roll and operating statement data plus the client's model for returns. Includes a brand profile (`radix.brand_profile/v1`, Radix house style by default), a deterministic renderer, and an accuracy gate that blocks export when figures don't reconcile.
+- `ic-memo` (new): one-page IC memo as PDF and Word. Tells one story from Radix actuals (T12, T3, T1, rent roll) to the client model's pro forma and returns, with a capital stack, sources and uses, sensitivity heatmap, hold-period cash flow and ten fixed risk-flag rules. Includes a brand profile (`radix.brand_profile/v1`, Radix house style by default), a deterministic renderer, and an accuracy gate that blocks export when figures don't reconcile.
 - Release workflow: `<plugin>-latest` is now the ref the Claude plugin directory tracks. The workflow only moves it forward, fails if the move didn't land, and writes the result to the job summary. `docs/releasing.md` covers the directory webhook and how to check a release reached the directory.
 ## 1.0.2
 

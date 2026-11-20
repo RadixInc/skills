@@ -9,7 +9,7 @@ You need access to the Radix Underwriting MCP server through your organization's
 | Skill | What it does |
 | --- | --- |
 | `expense-benchmark` | Compares a deal's operating expenses (T12 actuals or an underwritten budget) with its 10 closest comparable deals in your account. Shows each expense category per unit next to the comp weighted average, median and range, and lists categories outside the range. |
-| `ic-memo` | Drafts a one-page Investment Committee memo for a deal as a PDF and/or Word file: commentary, snapshot, pricing and cap rates, T12 / T3 / T1 operating cash flow, unit mix, and risks from Radix, with returns, financing and sensitivity from your own model. Missing data is flagged, never filled in, and the numbers are reconciled before export. Needs code execution to render the file. |
+| `ic-memo` | Drafts a one-page Investment Committee memo as a PDF and/or Word file that runs from actuals to plan: headline returns, capital stack, sources and uses, IRR sensitivity, T12 actuals next to your model's pro forma, hold-period cash flow and rule-based risk flags. Actuals come from Radix, the plan from your own model. Missing data is flagged, never filled in, and the numbers are reconciled before export. Needs code execution to render the file. |
 | `occupancy-forecast` | Builds a 30/60/90-day occupancy view from the latest rent roll, using only committed changes: signed future leases, notices to vacate, and backfilled vacant units. Lease expirations with no confirmed outcome are listed separately. |
 | `rent-roll-compare` | Compares two rent rolls for the same deal and reports what changed, unit by unit: occupancy, move-ins and move-outs, renewals versus new leases, lease trade-out, concessions, month-to-month and notice exposure. |
 

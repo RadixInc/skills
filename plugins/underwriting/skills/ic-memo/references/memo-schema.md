@@ -1,74 +1,85 @@
-# memo.json (`radix.ic_memo/v1`)
+# memo.json (`radix.ic_memo/v2`)
 
-The agent writes this file; `scripts/render_memo.py` turns it into the memo. Leave any block you have no source for as `null`.
+The agent writes this file; `scripts/render_memo.py` turns it into the memo. Leave any block you have no source for as `null`: the page shows a flagged placeholder.
+
+The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, rent roll), then the **pro forma** from the client's model, then what the plan returns.
 
 ```json
 {
-  "schema": "radix.ic_memo/v1",
+  "schema": "radix.ic_memo/v2",
   "variant": "one_pager",
   "status_label": "Screening memo",
+  "strategy": null,
   "memo_date": "YYYY-MM-DD",
   "account": "Account name from the MCP result",
-  "deal": {
-    "name": "", "address": "", "units": 0, "year_built": 0,
-    "building_type": "", "total_sf": 0, "market": "", "deal_status": ""
-  },
+  "deal": {"name": "", "address": "", "units": 0, "year_built": 0, "building_type": "", "total_sf": 0, "market": ""},
   "sources": {
     "rent_roll": {"as_of": "YYYY-MM-DD"},
     "operating_statement": {"label": "Actuals", "period_end": "YYYY-MM-DD"},
-    "client_model": {"file": "model.xlsx", "as_of": null, "cells": {"price": "Summary!B2"}}
+    "client_model": {"file": "model.xlsm", "as_of": null, "cells": {"price": "Summary!G21"}}
   },
-  "snapshot": {
-    "occupancy_pct": 0, "in_place_rent": 0, "market_rent": 0, "pct_of_market": 0,
-    "vacant_units": 0, "leases_expiring_next90": 0
+  "snapshot": {"occupancy_pct": 0, "in_place_rent": 0, "market_rent": 0, "pct_of_market": 0,
+               "vacant_units": 0, "occupied_units": 0, "leases_expiring_next90": 0},
+  "unit_mix": {"rows": [{"label": "1 Bed", "units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}],
+               "total": {"units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}},
+  "actuals": {
+    "columns": [{"key": "T12", "label": "T12", "window": "Sep 2025 - Aug 2026"},
+                {"key": "T3", "label": "T3 Ann.", "window": "Jun - Aug 2026"},
+                {"key": "T1", "label": "T1 Ann.", "window": "Aug 2026"}],
+    "revenue":  [{"label": "Gross potential rent", "group": "potential_rent", "values": {"T12": 0, "T3": 0, "T1": 0}}],
+    "expenses": [{"label": "Personnel", "group": "controllable", "values": {"T12": 0, "T3": 0, "T1": 0}}],
+    "egr": {"T12": 0}, "opex": {"T12": 0}, "noi": {"T12": 0},
+    "monthly": {"months": ["2025-09"], "egr": [0], "opex": [0], "noi": [0]}
   },
-  "operations": {
-    "columns": [{"key": "T12", "label": "T12", "window": "Sep 2025 - Aug 2026"}],
-    "revenue":  [{"label": "Gross potential rent", "values": {"T12": 0}, "note": null}],
-    "expenses": [{"label": "Personnel", "values": {"T12": 0}, "note": null}],
-    "egr": {"T12": 0}, "opex": {"T12": 0}, "noi": {"T12": 0}
+  "proforma": {
+    "source": "client_model", "label": "Y1 pro forma",
+    "groups": {"potential_rent": 0, "loss_to_lease": 0, "vacancy_credit": 0, "other_income": 0,
+               "controllable": 0, "utilities": 0, "taxes_insurance": 0, "management": 0},
+    "egr": 0, "opex": 0, "noi": 0,
+    "effective_rent": 0, "market_rent": 0, "physical_occupancy": 0.75
   },
-  "unit_mix": {
-    "rows": [{"label": "1 Bed", "units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}],
-    "total": {"units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}
+  "deal_terms": {"price": 0, "price_source": "client_model", "all_in_cost": 0,
+                 "going_in_cap_model": 0.0946, "hold_years": 7, "analysis_start": "YYYY-MM-DD"},
+  "returns": {
+    "unlevered": {"irr": 0.125, "moic": 1.96, "profit": 0},
+    "levered":   {"irr": 0.125, "moic": 1.96, "profit": 0, "avg_coc": 0.082},
+    "lp": null,
+    "exit": {"cap": 0.05, "gross_proceeds": 0}
   },
-  "pricing": {"price": null, "price_source": "client_model | radix | user", "price_label": "Purchase price",
-              "items": [{"label": "Going-in cap, model pro forma NOI", "value": 0.0946, "format": "pct2"}]},
-  "model_reconciliation": {
-    "source": "client_model", "radix_basis": "T12", "model_basis": "Year 1",
-    "rows": [{"label": "Net operating income", "radix": 0, "model": 0, "format": "money"}]
-  },
-  "returns":   {"source": "client_model", "items": [{"label": "Levered IRR", "value": 0.142, "format": "pct"}]},
-  "financing": {"source": "client_model", "items": [{"label": "Loan amount", "value": 0, "format": "money"}]},
-  "sensitivity": {
-    "source": "client_model", "title": "Levered IRR: exit cap rate vs. rent growth",
-    "row_label": "Exit cap", "col_label": "Rent growth",
-    "rows": ["5.50%"], "cols": ["2.0%"], "values": [[0.15]], "format": "pct"
-  },
-  "assumptions_vs_market": {"source": "", "rows": [{"label": "Rent growth Y1", "ours": "3.0%", "market": "2.4%"}]},
-  "commentary": {"status": "draft", "text": "Paragraphs separated by \\n"},
-  "risks": [{"risk": "", "mitigant": null}],
-  "sample": false
+  "capital_stack": {"layers": [{"label": "Senior debt", "amount": 0, "kind": "debt"},
+                               {"label": "Equity", "amount": 0, "kind": "equity"}],
+                    "terms": ["5.39% fixed, 60-month IO, 30-year amortization"]},
+  "sources_uses": {"uses": [{"label": "Purchase price", "amount": 0}],
+                   "sources": [{"label": "Equity", "amount": 0}]},
+  "sensitivity": {"source": "client_model", "metric": "Levered IRR", "title": "",
+                  "row_label": "Hold", "col_label": "Exit cap", "rows": ["7 yrs"], "cols": ["5.00%"],
+                  "values": [[0.125]], "format": "pct", "base": {"row": "7 yrs", "col": "5.00%"}},
+  "hold_cash_flow": {"years": ["Y1"], "egr": [0], "opex": [0], "noi": [0], "debt_service": [0], "capex": [0],
+                     "net_cash_flow": [0], "coc": [0.087], "dscr": null},
+  "commentary": {"status": "draft", "text": "Two or three sentences."},
+  "analyst_notes": []
 }
 ```
 
 ## Rules
 
-- Percent fields in `snapshot` and `unit_mix` are percent numbers as the server returns them (`76.4` = 76.4%). Percent values in `returns`, `financing` and `sensitivity` are ratios (`0.142` = 14.2%).
-- Expense lines are positive; revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them.
-- `operations` column keys are free (`T12`, `T3`, `T1`, `Y1`). The auto run-rate notes need `T12` and `T3`.
-- `note` on a line is the analyst's text. Leave it `null` and the renderer adds a grey derived flag when T3 annualized differs from T12 by 15% or more.
-- `pricing.items` are extra rows from the model shown under the derived cap rates. `model_reconciliation` rows are shown side by side with the difference; 5% or more is highlighted. `format` is `money` or `int`.
-- `sample: true` prints a banner saying returns come from an illustrative model. Use it only for demos.
+- **Groups.** Every actual line gets one `group`: `potential_rent`, `loss_to_lease`, `vacancy_credit` (vacancy, concessions, non-revenue units, collection loss), `other_income` (other residential income, reimbursements, parking, storage, commercial), `controllable` (repairs, contract services, turnover, landscaping, personnel, marketing, leasing commissions, administrative, security, other), `utilities`, `taxes_insurance` (real estate and other taxes, insurance), `management`. The pro forma uses the same groups, mapped from the model's own lines.
+- **Signs.** Expenses are positive. Revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them. Debt service and capex in `hold_cash_flow` are positive amounts.
+- **Percents.** `snapshot` and `unit_mix` percents are percent numbers as the server returns them (`76.4`). Everything else is a ratio (`0.125` = 12.5%).
+- **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It draws the sparklines.
+- **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
+- **`commentary`** is the summary line in the footer: 2 or 3 sentences, facts only, every figure as the page shows it.
+- **`analyst_notes`** are optional lines the user gives you; they print under the risk flags. Risk flags themselves are computed, see [risk-rules.md](risk-rules.md).
 
 ## Accuracy gate
 
 The renderer refuses to export (exit code 2) when:
 
-- revenue lines don't sum to EGR, or expense lines don't sum to OpEx, in any column (±$1)
-- NOI ≠ EGR - OpEx in any column (±$1)
-- unit mix rows don't sum to the total, or the total ≠ the deal's units
-- snapshot occupancy ≠ the unit mix total occupancy
-- the rent roll date or the operating statement windows are missing
-- a returns, financing or sensitivity block has no source, or names the client model without a file
-- commentary or risks cite a number that isn't in the data, in the format the memo shows it (years and bare whole numbers under 100, such as "T3" or "5-year", are ignored)
+- actual revenue lines don't sum to EGR, expense lines to OpEx, or NOI ≠ EGR - OpEx, in any column (±$1)
+- an actual line has no group
+- pro forma groups don't sum to its EGR and OpEx, its NOI ≠ EGR - OpEx, or its NOI ≠ Year 1 NOI in the hold cash flow
+- hold-period net cash flow ≠ NOI - debt service - capex in any year
+- sources ≠ uses, or the capital stack ≠ total sources
+- the unit mix doesn't add to the deal's units, or snapshot occupancy ≠ the rent roll total
+- the rent roll date, the actual column windows, or (when any model block is used) the model file name is missing
+- the summary or an analyst note cites a figure that isn't printed on the page (years and bare whole numbers under 100 are ignored)

@@ -39,6 +39,12 @@ The Radix underwriting model export (`<deal number> - <deal name>-<account id>-<
 | Year 1 EGR, OpEx, NOI | `Cash Flow` rows "Effective Gross Revenue", "Operating Expenses" (negative), "NET OPERATING INCOME", first year column |
 | Equity, closing costs, loans | `Sources & Uses` "Sources & Uses at Closing" |
 | Loan terms | `Summary` "Debt Summary" (all zeros means all cash) |
+| Year 1 pro forma by line | `Property CF`, Year 1 column (D): Potential Market Rent, Renovation Premium, Loss to Lease, Vacancy, Renovation Downtime, Concessions, Non-Revenue Units, Collection Loss, Other Income (subtotal), EFFECTIVE GROSS REVENUE, each expense line (negative), TOTAL OPERATING EXPENSES, Net Operating Income. Column C is the model's T1 annualized; don't use it as actuals, use Radix |
+| Pro forma effective rent, market rent, occupancy | `Property CF` rows "Effective Rent (average)", "Market Rent (average)", "Physical Occupancy" (Year 1 column) |
+| Hold-period cash flow by year | `Cash Flow` rows 18 to 25 (EGR, OpEx, NOI, capex, operating cash flow), 42 (debt service), 62 (cash-on-cash), one column per year |
+| Profit | `Cash Flow` TOTAL column of "UNLEVERAGED CASH FLOW" and "LEVERAGED CASH FLOW" |
 | IRR by hold period and exit cap | `Sensitivity Analysis` "Unleveraged internal rate of return and equity multiple": hold periods down column K, exit caps across row 22, IRR and multiple on alternating rows |
 
 When every loan is zero, say "all cash" in the financing block and note that leveraged and unleveraged returns are the same. Leveraged sensitivity grids are all zeros in that case; use the unleveraged grid.
+
+Group mapping for `Property CF` lines: Potential Market Rent and Renovation Premium → `potential_rent`; Loss to Lease → `loss_to_lease`; Vacancy, Renovation Downtime, Concessions, Non-Revenue Units, Collection Loss → `vacancy_credit`; Other Income → `other_income`; Utilities → `utilities`; Insurance and Real Estate Taxes → `taxes_insurance`; Property Management Fee → `management`; every other expense line → `controllable`. Expenses are negative in the sheet; make them positive.
