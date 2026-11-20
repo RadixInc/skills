@@ -1,0 +1,32 @@
+{
+  "schema": "radix.brand_profile/v1",
+  "profile_id": "radix-house-style",
+  "name": "Radix house style",
+  "owner": {"level": "default", "account_name": null},
+  "logo": {
+    "data_uri": null,
+    "url": null,
+    "wordmark_text": "Radix",
+    "placement": "header_left"
+  },
+  "colors": {
+    "primary": "#144a85",
+    "accent": "#1f76d6",
+    "accent_tint": "#eff4fe"
+  },
+  "fonts": {
+    "heading": "Manrope",
+    "body": "Manrope"
+  },
+  "firm": {
+    "display_name": "Radix",
+    "contact_lines": []
+  },
+  "disclaimer": "Prepared for internal investment committee review. Figures marked as from Radix are tied to the source rent roll and operating statement named on each table. Figures marked as from the client model come from the file named in the footer. Draft text is for the analyst to edit.",
+  "defaults": {
+    "ic_memo": {"format": null, "variant": "one_pager"},
+    "om": {"format": null},
+    "bov": {"format": null}
+  },
+  "updated_at": "2026-11-20"
+}
