@@ -137,6 +137,14 @@ def derive(memo):
         d["noi_per_unit"][k] = noi / units if is_num(noi) and is_num(units) and units else None
         d["cap_rate"][k] = noi / price if is_num(noi) and is_num(price) and price else None
         d["expense_ratio"][k] = opex / egr if is_num(opex) and is_num(egr) and egr else None
+    # Model vs. Radix: differences are flagged, never reconciled away.
+    d["recon"] = []
+    for r in ((memo.get("model_reconciliation") or {}).get("rows") or []):
+        rv, mv = r.get("radix"), r.get("model")
+        diff = mv - rv if is_num(rv) and is_num(mv) else None
+        pct = diff / abs(rv) if is_num(diff) and rv else None
+        d["recon"].append({"label": r["label"], "radix": rv, "model": mv, "diff": diff, "pct": pct,
+                           "format": r.get("format", "money")})
     # Auto notes: run-rate differences of more than 15% between T3 annualized and T12 (factual, derived).
     d["auto_notes"] = {}
     if "T12" in cols and "T3" in cols:
@@ -214,8 +222,18 @@ def figure_strings(memo, der):
     pr = memo.get("pricing") or {}
     add_money(pr.get("price"))
     add_money(der.get("price_per_unit"))
-    for block in ("returns", "financing"):
-        for it in ((memo.get(block) or {}).get("items") or []):
+    for r in der.get("recon", []):
+        for v in (r["radix"], r["model"], r["diff"]):
+            if r["format"] == "money":
+                add_money(v)
+            else:
+                add_any(v)
+        if is_num(r["pct"]):
+            add_pct(r["pct"] * 100, (0, 1))
+            add_pct(abs(r["pct"]) * 100, (0, 1))
+    pr_items = [{"items": pr.get("items") or []}]
+    for block in pr_items + [memo.get("returns") or {}, memo.get("financing") or {}]:
+        for it in (block.get("items") or []):
             v = it.get("value")
             out.add(fmt_value(v, it.get("format")))
             if it.get("format") in ("pct", "pct2") and is_num(v):
@@ -400,12 +418,37 @@ def build_html(memo, brand, der, status, placeholders):
     if is_num(pr.get("price")):
         rows = [(pr.get("price_label") or "Price", fmt_money(pr["price"])), ("Price / unit", fmt_money(der["price_per_unit"]))]
         for c in cols:
-            rows.append((f"Cap rate on {c['label']} NOI", fmt_ratio_pct(der["cap_rate"].get(c["key"]))))
+            rows.append((f"Cap rate on Radix {c['label']} NOI", fmt_ratio_pct(der["cap_rate"].get(c["key"]))))
+        for it in pr.get("items") or []:
+            rows.append((it["label"], fmt_value(it.get("value"), it.get("format"))))
         price_src = {"client_model": model_label or "Client model", "radix": "Radix deal pricing", "user": "Entered by user"}.get(pr.get("price_source"), "")
+        extra = " Rows after the cap rates are from the model." if pr.get("items") else ""
         pricing_html = ('<table class="kv">' + "".join(f'<tr><td>{esc(a)}</td><td class="n">{esc(b)}</td></tr>' for a, b in rows) +
-                        '</table>' + source_line(f"Price: {price_src}. Cap rates derived: NOI / price."))
+                        '</table>' + source_line(f"Price: {price_src}. Cap rates derived: Radix NOI / price.{extra}"))
     else:
         pricing_html = placeholder_html("Price, price per unit and cap rates on T12, T3 and T1 NOI")
+
+    # Model vs. Radix
+    if der["recon"]:
+        mr = memo.get("model_reconciliation") or {}
+        def rc(v, f):
+            return fmt_money(v) if f == "money" else fmt_int(v)
+        def recon_row(r):
+            f = r["format"]
+            flag = "flag" if is_num(r["pct"]) and abs(r["pct"]) >= 0.05 else ""
+            diff = "-"
+            if is_num(r["diff"]):
+                diff = ("+" if r["diff"] > 0 else "") + rc(r["diff"], f)
+                if is_num(r["pct"]) and r["diff"]:
+                    diff += f" ({r['pct'] * 100:+.1f}%)"
+            return (f'<tr class="{flag}"><td>{esc(r["label"])}</td><td class="n">{esc(rc(r["radix"], f))}</td>'
+                    f'<td class="n">{esc(rc(r["model"], f))}</td><td class="n">{esc(diff)}</td></tr>')
+        body_r = "".join(recon_row(r) for r in der["recon"])
+        recon_html = (f'<table class="ops"><thead><tr><th>Line</th><th class="n">Radix {esc(mr.get("radix_basis", ""))}</th>'
+                      f'<th class="n">Model {esc(mr.get("model_basis", ""))}</th><th class="n">Difference</th></tr></thead><tbody>{body_r}</tbody></table>'
+                      + source_line(f"Differences of 5% or more are highlighted. Derived: model minus Radix. {model_label or ''}"))
+    else:
+        recon_html = None
 
     def block_or_ph(key, label):
         b = memo.get(key)
@@ -529,6 +572,7 @@ body {{ font-family:'{font}', Arial, sans-serif; color:{NEUTRAL['text']}; font-s
 .r1 {{ grid-template-columns: 1.55fr 1fr; }}
 .r2 {{ grid-template-columns: 1fr 1fr 1fr; }}
 .r3 {{ grid-template-columns: 1.62fr 1fr; }}
+.r4 {{ grid-template-columns: 1.62fr 1fr; }}
 .card {{ border:1px solid {NEUTRAL['border']}; border-radius:6px; padding:8px 10px; break-inside:avoid; }}
 h3 {{ margin:0 0 5px; font-size:7.4pt; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:{primary}; display:flex; align-items:center; gap:6px; }}
 h3::before {{ content:""; width:3px; height:9px; background:{accent}; border-radius:2px; display:inline-block; }}
@@ -548,6 +592,7 @@ td.n, th.n {{ text-align:right; white-space:nowrap; }}
 .ops tr.sec td {{ font-weight:700; color:{NEUTRAL['muted']}; padding-top:4px; border-bottom:0; font-size:6.9pt; text-transform:uppercase; letter-spacing:.04em; }}
 .ops tr.tot td {{ font-weight:700; border-top:1px solid {NEUTRAL['border_strong']}; }}
 .ops tr.noi td {{ font-weight:800; background:{tint}; color:{NEUTRAL['text_strong']}; border-top:1.5px solid {primary}; }}
+.ops tr.flag td {{ background:{NEUTRAL['warn_bg']}; color:{NEUTRAL['warn_text']}; font-weight:600; }}
 .ops tr.sub td {{ color:{NEUTRAL['muted']}; font-style:normal; }}
 .ops .notecol {{ width:22%; }}
 td.note {{ color:{NEUTRAL['text']}; font-size:6.8pt; }}
@@ -594,10 +639,13 @@ td.note.derived {{ color:{NEUTRAL['faint']}; }}
   <div class="card">{ops_html}</div>
   <div class="stack">
     <div class="card">{um_html}</div>
+    {f'<div class="card"><h3>Model vs. Radix</h3>{recon_html}</div>' if recon_html else ''}
     <div class="card"><h3>Returns sensitivity</h3>{sens_html}</div>
-    <div class="card"><h3>Assumptions vs. submarket</h3>{avm_html}</div>
-    <div class="card"><h3>Risks and mitigants</h3>{risks_html}</div>
   </div>
+</div>
+<div class="row r4">
+  <div class="card"><h3>Risks and mitigants</h3>{risks_html}</div>
+  <div class="card"><h3>Assumptions vs. submarket</h3>{avm_html}</div>
 </div>
 <div class="foot"><div class="disc">{esc(disclaimer)}</div><div>{esc(' · '.join(srcs))}</div></div>
 """
@@ -612,17 +660,17 @@ def write_pdf(html_path, pdf_path, one_page=False):
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             b = p.chromium.launch()
-            # Printable area of Letter with the @page margins, in CSS px (96/in).
-            width_px, height_px = round((8.5 - 0.8) * 96), round((11 - 0.8) * 96)
-            pg = b.new_page(viewport={"width": width_px, "height": height_px})
+            pg = b.new_page()
             pg.goto(html_path.resolve().as_uri())
             pg.wait_for_timeout(200)
-            scale = 1.0
-            if one_page:
-                content_h = pg.evaluate("document.documentElement.scrollHeight")
-                if content_h > height_px:
-                    scale = max(0.8, (height_px - 4) / content_h)  # never below 80%: past that, cut content
-            pg.pdf(path=str(pdf_path), format="Letter", print_background=True, prefer_css_page_size=True, scale=scale)
+            # Shrink in small steps until the memo prints on one page; never below 72%.
+            # Printing and counting pages is exact, unlike measuring the screen layout.
+            scales = [1.0, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72] if one_page else [1.0]
+            for scale in scales:
+                pdf = pg.pdf(format="Letter", print_background=True, prefer_css_page_size=True, scale=scale)
+                if len(re.findall(rb"/Type\s*/Page[^s]", pdf)) <= 1:
+                    break
+            Path(pdf_path).write_bytes(pdf)
             b.close()
         return "playwright"
     except ImportError:
@@ -773,11 +821,22 @@ def write_docx(memo, brand, der, docx_path):
     pr = memo.get("pricing") or {}
     if is_num(pr.get("price")):
         rows = [[pr.get("price_label") or "Price", fmt_money(pr["price"])], ["Price / unit", fmt_money(der["price_per_unit"])]]
-        rows += [[f"Cap rate on {c['label']} NOI", fmt_ratio_pct(der["cap_rate"].get(c["key"]))] for c in cols]
+        rows += [[f"Cap rate on Radix {c['label']} NOI", fmt_ratio_pct(der["cap_rate"].get(c["key"]))] for c in cols]
+        rows += [[it["label"], fmt_value(it.get("value"), it.get("format"))] for it in pr.get("items") or []]
         table(["Item", "Value"], rows, num_cols=(1,))
-        small("Cap rates derived: NOI / price.")
+        small("Cap rates derived: Radix NOI / price." + (" Rows after the cap rates are from the model." if pr.get("items") else ""))
     else:
         placeholder("Price, price per unit and cap rates on T12, T3 and T1 NOI")
+
+    if der["recon"]:
+        mr = memo.get("model_reconciliation") or {}
+        heading("Model vs. Radix")
+        rc = lambda v, f: fmt_money(v) if f == "money" else fmt_int(v)
+        table(["Line", f"Radix {mr.get('radix_basis', '')}", f"Model {mr.get('model_basis', '')}", "Difference"],
+              [[r["label"], rc(r["radix"], r["format"]), rc(r["model"], r["format"]),
+                (("+" if is_num(r["diff"]) and r["diff"] > 0 else "") + rc(r["diff"], r["format"]) + (f" ({r['pct'] * 100:+.1f}%)" if is_num(r["pct"]) and r["diff"] else "")) if is_num(r["diff"]) else "-"]
+               for r in der["recon"]], num_cols=(1, 2, 3))
+        small("Derived: model minus Radix.")
 
     for key, label, ph in (("returns", "Returns", "Levered and unlevered IRR, equity multiple, cash-on-cash"),
                            ("financing", "Financing and JV", "Loan amount, LTV, rate, term, interest-only period, equity and JV split")):

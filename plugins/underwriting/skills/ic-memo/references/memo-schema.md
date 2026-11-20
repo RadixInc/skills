@@ -32,7 +32,12 @@ The agent writes this file; `scripts/render_memo.py` turns it into the memo. Lea
     "rows": [{"label": "1 Bed", "units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}],
     "total": {"units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}
   },
-  "pricing": {"price": null, "price_source": "client_model | radix | user", "price_label": "Purchase price"},
+  "pricing": {"price": null, "price_source": "client_model | radix | user", "price_label": "Purchase price",
+              "items": [{"label": "Going-in cap, model pro forma NOI", "value": 0.0946, "format": "pct2"}]},
+  "model_reconciliation": {
+    "source": "client_model", "radix_basis": "T12", "model_basis": "Year 1",
+    "rows": [{"label": "Net operating income", "radix": 0, "model": 0, "format": "money"}]
+  },
   "returns":   {"source": "client_model", "items": [{"label": "Levered IRR", "value": 0.142, "format": "pct"}]},
   "financing": {"source": "client_model", "items": [{"label": "Loan amount", "value": 0, "format": "money"}]},
   "sensitivity": {
@@ -53,6 +58,7 @@ The agent writes this file; `scripts/render_memo.py` turns it into the memo. Lea
 - Expense lines are positive; revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them.
 - `operations` column keys are free (`T12`, `T3`, `T1`, `Y1`). The auto run-rate notes need `T12` and `T3`.
 - `note` on a line is the analyst's text. Leave it `null` and the renderer adds a grey derived flag when T3 annualized differs from T12 by 15% or more.
+- `pricing.items` are extra rows from the model shown under the derived cap rates. `model_reconciliation` rows are shown side by side with the difference; 5% or more is highlighted. `format` is `money` or `int`.
 - `sample: true` prints a banner saying returns come from an illustrative model. Use it only for demos.
 
 ## Accuracy gate

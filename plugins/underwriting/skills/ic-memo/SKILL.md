@@ -67,6 +67,8 @@ Ask once for the model if the user hasn't given it: "Attach the deal model (.xls
 
 Extract per [references/client-model.md](references/client-model.md): find the labeled outputs, read the values, and record the sheet and cell of each in `sources.client_model.cells`. If a value is ambiguous (two IRRs, several scenarios), ask which one. If there's no model, leave `returns`, `financing` and `sensitivity` as `null`.
 
+**Model vs. Radix:** put the model's Year 1 (or going-in) EGR, OpEx and NOI, average in-place rent and occupied units next to the Radix T12 and rent roll figures in `model_reconciliation`. Never adjust either side to make them agree; the renderer shows the differences and highlights any of 5% or more. A large gap usually belongs in the risks as a fact ("Model Year 1 EGR is $X, $Y above the Radix T12 EGR of $Z").
+
 **Price:** use the model's purchase or bid price. If there's no model, use the deal's `expectedPurchasePrice` from Radix (`price_source: "radix"`), or a price the user gives you (`"user"`). Otherwise `null`.
 
 **Assumptions vs. submarket:** Radix doesn't have a submarket forecast yet. Fill this block only if the user supplies both sides; otherwise leave it `null`.
