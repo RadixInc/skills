@@ -172,7 +172,7 @@ def derive(memo):
     return d
 
 
-# ---------- underwriting checks (fixed rules, documented in references/risk-rules.md) ----------
+# ---------- pre-send checks (fixed rules, documented in references/pre-send-checks.md; not printed on the memo) ----------
 
 def risk_flags(memo, d):
     act, pf, snap = memo.get("actuals") or {}, memo.get("proforma") or {}, memo.get("snapshot") or {}
@@ -311,7 +311,7 @@ def run_gate(memo, der, shown):
         check("Client model file is named", bool((src.get("client_model") or {}).get("file")))
 
     for name, text in [("Summary", (memo.get("commentary") or {}).get("text") or "")] + \
-                      [(f"Note {i + 1}", n) for i, n in enumerate(memo.get("analyst_notes") or [])]:
+                      [(f"Note on {k}", n) for k, n in ((memo.get("proforma") or {}).get("notes") or {}).items() if n]:
         unmatched = []
         for tok in NUM_TOKEN.findall(text):
             t = tok.strip().rstrip(".,;:")
@@ -532,10 +532,17 @@ def build_html(memo, brand, der, S):
     # ----- operating statement (report table; pro forma is the subject column)
     cols = act.get("columns", [])
     has_pf = bool(pf)
-    ncol = len(cols) + 1 + (2 if has_pf else 0)
+    notes = {k: v for k, v in (pf.get("notes") or {}).items() if v}
+    has_notes = bool(notes)
+    ncol = len(cols) + 1 + (2 if has_pf else 0) + (1 if has_notes else 0)
     head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{esc(c["label"])}</th>' for c in cols)
     if has_pf:
         head += f'<th class="rx-rtbl__th rx-rtbl__th--num rx-rtbl__th--subject">{esc(pf.get("label", "Y1 pro forma"))}</th><th class="rx-rtbl__th rx-rtbl__th--num">Change</th>'
+    if has_notes:
+        head += '<th class="rx-rtbl__th">Notes</th>'
+
+    def note_td(key):
+        return f'<td class="rx-rtbl__td rx-rtbl__td--note">{esc(notes.get(key, ""))}</td>' if has_notes else ""
 
     def change_txt(p, a):
         if not (is_num(p) and is_num(a)):
@@ -553,17 +560,17 @@ def build_html(memo, brand, der, S):
         if has_pf:
             a12 = (act.get(key) or {}).get("T12") if key in ("egr", "opex", "noi") else der["groups"][key].get("T12")
             tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.money(p)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{change_txt(p, a12)}</td>'
-        return f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}</tr>'
+        return f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}{note_td(key)}</tr>'
 
     def grp(title):
         return f'<tr class="rx-rtbl__group"><th class="rx-rtbl__grouptitle" colspan="{ncol}">{esc(title)}</th></tr>'
 
-    def single(label, actual_txt, pf_txt, change=""):
+    def single(label, actual_txt, pf_txt, change="", key=""):
         blanks = "".join('<td class="rx-rtbl__td"></td>' for _ in cols[1:])
         tds = f'<td class="rx-rtbl__td rx-rtbl__td--num">{esc(actual_txt)}</td>{blanks}'
         if has_pf:
             tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{esc(pf_txt)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{esc(change)}</td>'
-        return f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}</tr>'
+        return f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}{note_td(key)}</tr>'
     body = grp("Revenue") + "".join(orow(k, l) for k, l in REV_GROUPS) + orow("egr", "Effective gross revenue", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
     body += grp("Operating expenses") + "".join(orow(k, l) for k, l in EXP_GROUPS) + orow("opex", "Total operating expenses", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
     body += orow("noi", "Net operating income", " rx-rtbl__tr--strong rx-rtbl__tr--noi")
@@ -571,42 +578,26 @@ def build_html(memo, brand, der, S):
     if is_num(snap.get("in_place_rent")):
         r_pf = pf.get("effective_rent")
         ops_extra += single("Rent / unit / mo (rent roll)", S.money(snap["in_place_rent"]), S.money(r_pf) if is_num(r_pf) else "-",
-                            change_txt(r_pf, snap["in_place_rent"]) if is_num(r_pf) else "")
+                            change_txt(r_pf, snap["in_place_rent"]) if is_num(r_pf) else "", "rent")
     if is_num(snap.get("occupancy_pct")):
         o_pf = pf.get("physical_occupancy")
         d_o = f"{o_pf * 100 - snap['occupancy_pct']:+.1f} pts" if is_num(o_pf) else ""
         S.add(d_o)
-        ops_extra += single("Occupancy (rent roll)", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", d_o)
+        ops_extra += single("Occupancy (rent roll)", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", d_o, "occupancy")
     if is_num(terms.get("price")):
         caps = "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(der["cap"].get(c["key"]), 2))}</td>' for c in cols)
         if has_pf:
             pf_cap = pf["noi"] / terms["price"] if is_num(pf.get("noi")) else None
             caps += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.add(fmt_ratio(pf_cap, 2))}</td><td class="rx-rtbl__td"></td>'
-        ops_extra += f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">Cap rate on purchase price</th>{caps}</tr>'
+        ops_extra += f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">Cap rate on purchase price</th>{caps}{note_td("cap_rate")}</tr>'
     if ops_extra:
         body += grp("Operations and pricing") + ops_extra
     windows = "; ".join(f'{c["label"]} {c["window"]}' for c in cols if c.get("window"))
-    ops_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:27%">' + "<col>" * (ncol - 1) +
+    num_cols = ncol - 1 - (1 if has_notes else 0)
+    ops_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:{18 if has_notes else 24}%">' + "<col>" * num_cols +
+                ('<col style="width:28%">' if has_notes else "") +
                 f'</colgroup><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">$ annual</th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
                 f'<p class="rx-chart-note">{esc(windows)}.</p>')
-
-    # ----- underwriting checks
-    flags = der["flags"]
-    fired = [f for f in flags if f["fired"]]
-    clear = [f for f in flags if not f["fired"]]
-    for f in fired:
-        for tok in NUM_TOKEN.findall(f["observed"]):
-            S.add(tok)
-    checks_html = "".join(
-        f'<div class="chk"><span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">Review</span>'
-        f'<div><div class="chk__name">{esc(f["name"])}</div><div class="chk__obs">{esc(f["observed"])}</div>'
-        f'<div class="chk__rule">{esc(f["test"])}</div></div></div>' for f in fired)
-    checks_html += "".join(
-        f'<div class="chk chk--clear"><span class="rx-status-pill rx-status-pill--success rx-status-pill--compact">Clear</span>'
-        f'<div><div class="chk__name">{esc(f["name"])}</div></div></div>' for f in clear)
-    checks_html += "".join(f'<div class="chk"><span class="rx-status-pill rx-status-pill--brand rx-status-pill--compact">Note</span><div>{esc(n)}</div></div>'
-                           for n in memo.get("analyst_notes") or [])
-    count_pill = f'<span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">{len(fired)} to review</span>' if fired else ""
 
     css = f"""
 {font_face_css()}
@@ -640,7 +631,7 @@ p {{ margin:0; }}
 .grid {{ display:grid; gap:10px; margin-top:10px; }}
 .g-a {{ grid-template-columns: 1fr 1.32fr; }}
 .g-b {{ grid-template-columns: 1fr 1fr; }}
-.g-c {{ grid-template-columns: 1.62fr 1fr; }}
+.rx-rtbl td.rx-rtbl__td--note {{ white-space:normal; color:#414651; font-size:6.3pt; line-height:1.3; padding:2px 6px; }}
 .mt-grid {{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }}
 .rx-metric-tile {{ display:flex; flex-direction:column; gap:1px; padding:8px 10px; border:1px solid #eaeaf0; border-radius:8px; background:#fff; min-width:0; }}
 .rx-metric-tile__label {{ font-size:7pt; font-weight:500; color:#414651; }}
@@ -681,13 +672,6 @@ p {{ margin:0; }}
 .rx-status-pill--warning {{ color:#b54708; background:#fffaeb; }}
 .rx-status-pill--success {{ color:#067647; background:#ecfdf3; }}
 .rx-status-pill--brand {{ color:#1a62b2; background:#eff4fe; }}
-.chk {{ display:flex; gap:7px; align-items:flex-start; padding:5px 0; border-bottom:1px solid #eaeaf0; }}
-.chk:last-child {{ border-bottom:0; }}
-.chk__name {{ font-weight:600; color:#252b37; }}
-.chk__obs {{ color:#414651; font-weight:500; }}
-.chk__rule {{ font-size:6.1pt; color:#a4a7ae; }}
-.chk--clear {{ padding:3px 0; }}
-.chk--clear .chk__name {{ font-weight:500; color:#717680; }}
 .rx-alert {{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid #fedf89; background:#fffaeb; border-radius:8px; color:#414651; }}
 .rx-alert b {{ font-size:6.4pt; font-weight:700; color:#b54708; }}
 .foot {{ display:flex; justify-content:space-between; gap:16px; margin-top:9px; font-size:5.8pt; color:#a4a7ae; }}
@@ -714,9 +698,8 @@ p {{ margin:0; }}
   <section class="card"><div class="card__head"><span class="card__title">Capitalization</span></div>{cap_html}</section>
   <section class="card"><div class="card__head"><span class="card__title">{esc(sens.get('metric', 'IRR'))} sensitivity</span><span class="card__meta">{esc(sens.get('col_label', ''))} across · {esc(sens.get('row_label', ''))} down</span></div>{sens_html}</section>
 </div>
-<div class="grid g-c">
-  <section class="card"><div class="card__head"><span class="card__title">Operating statement</span></div>{ops_html}</section>
-  <section class="card"><div class="card__head"><span class="card__title">Underwriting checks</span>{count_pill}</div>{checks_html}</section>
+<div class="grid">
+  <section class="card"><div class="card__head"><span class="card__title">Operating statement</span><span class="card__meta">Actuals from Radix · pro forma from the model</span></div>{ops_html}</section>
 </div>
 <div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
 """
@@ -860,7 +843,8 @@ def write_docx(memo, brand, der, docx_path):
         small(sens.get("title", ""))
 
     heading("Operating statement · actual to pro forma")
-    hdr = [""] + [c["label"] for c in cols] + ([pf.get("label", "Y1 pro forma"), "Change vs T12"] if pf else [])
+    dnotes = {k: v for k, v in (pf.get("notes") or {}).items() if v}
+    hdr = [""] + [c["label"] for c in cols] + ([pf.get("label", "Y1 pro forma"), "Change vs T12"] if pf else []) + (["Notes"] if dnotes else [])
     rows, bold, shaded = [], [], []
 
     def add(key, label, b=False, s=False):
@@ -873,6 +857,8 @@ def write_docx(memo, brand, der, docx_path):
             a12 = vals[[c["key"] for c in cols].index("T12")] if "T12" in [c["key"] for c in cols] else None
             chg = p_ - a12 if is_num(p_) and is_num(a12) else None
             row += [fmt_money(p_), (("+" if chg > 0 else "-" if chg < 0 else "") + fmt_money(abs(chg))) if is_num(chg) else "-"]
+        if dnotes:
+            row.append(dnotes.get(key, ""))
         rows.append(row)
         if b:
             bold.append(len(rows) - 1)
@@ -886,15 +872,6 @@ def write_docx(memo, brand, der, docx_path):
     add("opex", "Total operating expenses", True)
     add("noi", "Net operating income", True, True)
     table(hdr, rows, bold=bold, shaded=shaded)
-
-    heading(f"Underwriting checks · {sum(f['fired'] for f in der['flags'])} to review")
-    for f in der["flags"]:
-        if f["fired"]:
-            p = doc.add_paragraph(style="List Bullet"); r = p.add_run(f["name"] + ": "); r.bold = True
-            p.add_run(f["observed"])
-            small(f"rule: {f['test']}", "#a4a7ae")
-    for n in memo.get("analyst_notes") or []:
-        doc.add_paragraph(n, style="List Bullet")
 
     hcf = memo.get("hold_cash_flow") or {}
     if hcf.get("noi"):
@@ -946,7 +923,7 @@ def write_docx(memo, brand, der, docx_path):
 def run_summary(memo, status, checks, placeholders, flags, outputs):
     lines = [f"# Run summary: {memo['deal'].get('name')} IC memo", "", f"Accuracy gate: **{status.replace('_', ' ')}**", "", "## Checks"]
     lines += [f"- {'PASS' if c['ok'] else 'FAIL'}: {c['check']}" + (f" ({c['detail']})" if c["detail"] and not c["ok"] else "") for c in checks]
-    lines += ["", f"## Underwriting checks ({sum(f['fired'] for f in flags)} to review, {sum(not f['fired'] for f in flags)} clear)"]
+    lines += ["", f"## Pre-send checks, not printed on the memo ({sum(f['fired'] for f in flags)} to look at, {sum(not f['fired'] for f in flags)} clear)"]
     lines += [f"- {'REVIEW' if f['fired'] else 'clear'}: {f['name']} ({f['test']}): {f['observed']}" for f in flags]
     lines += ["", "## Placeholders"] + ([f"- {p}" for p in placeholders] or ["- None"])
     lines += ["", "## Files"] + [f"- {o}" for o in outputs]
@@ -994,7 +971,7 @@ def main():
         outputs.append(str(out / f"{stem}.docx"))
     (out / f"{stem}-run-summary.md").write_text(run_summary(memo, status, checks, placeholders, der["flags"], outputs))
     print(json.dumps({"status": status, "outputs": outputs, "placeholders": placeholders,
-                      "flags_fired": [f["name"] for f in der["flags"] if f["fired"]],
+                      "checks_to_look_at": [f"{f['name']}: {f['observed']}" for f in der["flags"] if f["fired"]],
                       "failed": [c for c in checks if not c["ok"]]}, indent=2))
 
 

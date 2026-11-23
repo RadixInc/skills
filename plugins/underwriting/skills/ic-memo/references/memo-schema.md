@@ -36,7 +36,8 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
     "groups": {"potential_rent": 0, "loss_to_lease": 0, "vacancy_credit": 0, "other_income": 0,
                "controllable": 0, "utilities": 0, "taxes_insurance": 0, "management": 0},
     "egr": 0, "opex": 0, "noi": 0,
-    "effective_rent": 0, "market_rent": 0, "physical_occupancy": 0.75
+    "effective_rent": 0, "market_rent": 0, "physical_occupancy": 0.75,
+    "notes": {"potential_rent": "Analyst's note", "other_income": null}
   },
   "deal_terms": {"price": 0, "price_source": "client_model", "all_in_cost": 0,
                  "going_in_cap_model": 0.0946, "hold_years": 7, "analysis_start": "YYYY-MM-DD"},
@@ -56,8 +57,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
                   "values": [[0.125]], "format": "pct", "base": {"row": "7 yrs", "col": "5.00%"}},
   "hold_cash_flow": {"years": ["Y1"], "egr": [0], "opex": [0], "noi": [0], "debt_service": [0], "capex": [0],
                      "net_cash_flow": [0], "coc": [0.087], "dscr": null},
-  "commentary": {"status": "draft", "text": "Two or three sentences."},
-  "analyst_notes": []
+  "commentary": {"status": "draft", "text": "Two or three sentences."}
 }
 ```
 
@@ -69,7 +69,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It is kept for the trend view (not drawn on the one-pager).
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
 - **`commentary`** is the summary in the page head: 2 or 3 sentences, facts only, every figure as the page shows it.
-- **`analyst_notes`** are optional lines the user gives you; they print under the underwriting checks. The checks themselves are computed, see [risk-rules.md](risk-rules.md).
+- **`proforma.notes`** are the analyst's notes by group key (any of the eight groups, plus `egr`, `opex`, `noi`, `rent`, `occupancy`, `cap_rate`). They print in a Notes column on the operating statement, which only appears when a note exists. Never write them yourself. Pre-send checks are computed and never printed, see [pre-send-checks.md](pre-send-checks.md).
 
 ## Accuracy gate
 
@@ -82,4 +82,4 @@ The renderer refuses to export (exit code 2) when:
 - sources ≠ uses, or the capital stack ≠ total sources
 - the unit mix doesn't add to the deal's units, or snapshot occupancy ≠ the rent roll total
 - the rent roll date, the actual column windows, or (when any model block is used) the model file name is missing
-- the summary or an analyst note cites a figure that isn't printed on the page (years and bare whole numbers under 100 are ignored)
+- the summary or a line note cites a figure that isn't printed on the page (years and bare whole numbers under 100 are ignored)

@@ -1,10 +1,10 @@
-# Underwriting checks
+# Pre-send checks
 
-The memo's underwriting checks are fixed rules the renderer runs on the memo's own data. They're the same on every run and in every agent, so two analysts get the same checks for the same deal. On the page, a rule that fires shows a "Review" pill with the observed value and the rule; a rule that passes shows "Clear". The run summary lists every rule.
+Pre-send checks are fixed rules the renderer runs on the memo's data before it goes to committee. They are for the analyst, not the committee: they are never printed on the memo. They appear in the renderer's output, in the run summary, and in the agent's reply, so the analyst can fix a data problem or prepare an answer before sending. The same data gives the same checks on every run and in every agent.
 
 A rule only runs when its inputs exist (no model, no pro forma rules).
 
-| Check | Marked for review when | Inputs |
+| Check | Fires when | Inputs |
 |---|---|---|
 | Pro forma revenue well above actual | Y1 EGR is more than 10% above T12 EGR | actuals, proforma |
 | Pro forma NOI well above actual | Y1 NOI is more than 15% above T12 NOI | actuals, proforma |
@@ -19,4 +19,6 @@ A rule only runs when its inputs exist (no model, no pro forma rules).
 
 Thresholds live in `scripts/render_memo.py` (`risk_flags`). Change them there and here together.
 
-Checks state what the data shows. They don't say whether the plan is wrong: a value-add pro forma is supposed to sit above the T12. The analyst explains the gap in the summary or in `analyst_notes`.
+Checks state what the data shows. They don't say whether the plan is wrong: a value-add pro forma is supposed to sit above the T12. When a check points at a pro forma line, the analyst can explain it in that line's note (`proforma.notes`), which does print on the memo.
+
+Some checks point at data quality rather than the deal (for example, T12 rent that doesn't match the rent roll usually means a mapping or upload issue). Those should be fixed in Radix before the memo is sent.

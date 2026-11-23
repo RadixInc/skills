@@ -10,9 +10,11 @@ An IC memo answers one question for the committee: should we bid, and at what pr
 1. **Page head**: the property, its marks (memo type, structure, hold) and a two-sentence summary.
 2. **Deal metrics and NOI over the hold**: levered IRR, multiple, cash-on-cash, price, going-in and exit cap; NOI by year from the model next to the T12 actual.
 3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted.
-4. **Operating statement and underwriting checks**: T12, T3 and T1 actuals from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates; fixed rules that mark what to review.
+4. **Operating statement**: T12, T3 and T1 actuals from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given.
 
-The layout is code: `scripts/render_memo.py` draws every block the same way on every run, runs the underwriting checks, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, write a two-sentence summary, and write `memo.json`.
+Risks and mitigants are the analyst's judgment and belong in the full IC memo, not the screening one-pager. Before the memo goes out, the renderer runs fixed pre-send checks (see [references/pre-send-checks.md](references/pre-send-checks.md)); you report them to the analyst, and they never print on the memo.
+
+The layout is code: `scripts/render_memo.py` draws every block the same way on every run, runs the pre-send checks, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, write a two-sentence summary, collect the analyst's line notes, and write `memo.json`.
 
 ## Prerequisites
 
@@ -69,7 +71,9 @@ No model → leave those blocks `null`. The memo still renders the actuals, with
 
 ## Step 5: The summary
 
-Two or three sentences for the page head: what the deal is (units, vintage, type, market, price per unit, structure), and what the plan does (actual NOI to pro forma NOI, hold, exit cap). Use figures exactly as the page prints them (e.g. `$57,748`, `$1.46M`, `5.00%`). If the user gives you their own view or mitigants, add them as `analyst_notes`.
+Two or three sentences for the page head: what the deal is (units, vintage, type, market, price per unit, structure), and what the plan does (actual NOI to pro forma NOI, hold, exit cap). Use figures exactly as the page prints them (e.g. `$57,748`, `$1.46M`, `5.00%`).
+
+**Line notes:** ask the analyst for a short note on any pro forma line that moves a lot from the T12 (the pre-send checks point at them). Put them in `proforma.notes` by group (`potential_rent`, `other_income`, `rent`, `occupancy` and so on). The Notes column only appears when at least one note exists. Never write a note yourself.
 
 ## Step 6: Render and check
 
@@ -83,14 +87,14 @@ python3 scripts/render_memo.py --memo memo.json --brand brand.json --out out --f
 
 ## Output
 
-Deliver the PDF and/or Word file. In the reply: one line on the headline returns, the underwriting checks marked for review (by name), and any placeholders still open. Don't restate the memo.
+Deliver the PDF and/or Word file. In the reply: one line on the headline returns, then the pre-send checks that fired, each with its value (they're not on the memo, so this is where the analyst sees them), and any placeholders still open. Offer to add line notes or rerun after a data fix. Don't restate the memo.
 
 ## Without code execution
 
-Pull the same data and write the memo as Markdown in the same order (summary, deal metrics, NOI over the hold, capitalization, sensitivity, operating statement, underwriting checks), figures formatted the same way, `[Needs client model]` where data is missing. Check the tie-outs by hand and say that the formatted PDF needs an agent with code execution.
+Pull the same data and write the memo as Markdown in the same order (summary, deal metrics, NOI over the hold, capitalization, sensitivity, operating statement), then list the pre-send checks separately for the analyst, figures formatted the same way, `[Needs client model]` where data is missing. Check the tie-outs by hand and say that the formatted PDF needs an agent with code execution.
 
 ## Not built yet
 
-- **Full IC memo** (thesis, business plan, broker vs. buyer reconciliation, diligence status). Offer the one-pager.
+- **Full IC memo** (thesis, business plan, risks and mitigants written by the analyst, broker vs. buyer reconciliation, diligence status). Offer the one-pager.
 - **Submarket forecast** next to the pro forma assumptions: Radix has no forecast data yet.
 - **Maps and photos.**
