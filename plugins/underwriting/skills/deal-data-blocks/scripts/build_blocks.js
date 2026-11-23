@@ -56,7 +56,6 @@ const dateLabel = (d) => {
   const [y, m, dd] = String(d).slice(0, 10).split("-").map(Number);
   return `${MONTHS[m - 1]} ${dd}, ${y}`;
 };
-const ym = (s) => { const [y, m] = s.split("-").map(Number); return `${MONTHS[m - 1]} ${String(y).slice(2)}`; };
 
 // ---------- brand (colors only; layout, type scale and neutrals are fixed) ----------
 const hex = (c, d) => (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c.slice(1).toUpperCase() : d);
@@ -70,14 +69,19 @@ const FONT = DECK_SAFE.includes((brand.fonts || {}).body) ? brand.fonts.body : "
 // ---------- data ----------
 const deal = data.deal || {}, src = data.sources || {}, act = data.actuals || {}, pf = data.proforma || null;
 const snap = data.snapshot || {}, units = deal.units;
-const REV = [["potential_rent", "Potential rent"], ["loss_to_lease", "Loss to lease"], ["vacancy_credit", "Vacancy and credit loss"], ["other_income", "Other income"]];
-const EXP = [["controllable", "Controllable expenses"], ["utilities", "Utilities"], ["taxes_insurance", "Taxes and insurance"], ["management", "Management fee"]];
+// Operating statement rows: the line breakdown multifamily OMs use. Every actual line and every pro forma figure maps to one.
+const REV = [["gross_potential_rent", "Gross potential rent"], ["loss_to_lease", "Loss to lease"], ["vacancy", "Vacancy"], ["concessions", "Concessions"],
+  ["credit_loss", "Bad debt and non-revenue units"], ["other_income", "Other income"]];
+const EXP = [["payroll", "Payroll"], ["repairs_maintenance", "Repairs, maintenance and turnover"], ["contract_services", "Contract services and landscaping"],
+  ["marketing", "Marketing and leasing"], ["administrative", "General and administrative"], ["utilities", "Utilities"],
+  ["real_estate_taxes", "Real estate taxes"], ["insurance", "Insurance"], ["management", "Management fee"]];
+const CATS = REV.concat(EXP).map(([k]) => k);
 const cols = act.columns || [];
 const lines = (act.revenue || []).concat(act.expenses || []);
-const groupSum = (g, k) => { const vs = lines.filter((l) => l.group === g).map((l) => l.values[k]).filter(isNum); return vs.length ? vs.reduce((a, b) => a + b, 0) : null; };
+const groupSum = (g, k) => { const vs = lines.filter((l) => l.category === g).map((l) => l.values[k]).filter(isNum); return vs.length ? vs.reduce((a, b) => a + b, 0) : null; };
 const groups = {}; for (const [g] of REV.concat(EXP)) { groups[g] = {}; for (const c of cols) groups[g][c.key] = groupSum(g, c.key); }
 const actualOf = (key, col) => (["egr", "opex", "noi"].includes(key) ? (act[key] || {})[col] : groups[key][col]);
-const pfOf = (key) => (!pf ? null : ["egr", "opex", "noi"].includes(key) ? pf[key] : (pf.groups || {})[key]);
+const pfOf = (key) => (!pf ? null : ["egr", "opex", "noi"].includes(key) ? pf[key] : (pf.categories || {})[key]);
 // Unit mix is always by bed / bath (groupBy unitMixBath), never by floor plan.
 const um = data.unit_mix || {};
 const bathLabel = (b) => (Number.isInteger(b) ? String(b) : Number(b).toFixed(1));
@@ -86,7 +90,7 @@ const typeKey = (r) => `${r.beds}-${r.baths}`;
 const rrDate = dateLabel((src.rent_roll || {}).as_of);
 const modelFile = (src.client_model || {}).file;
 const hcf = data.hold_cash_flow || {};
-const m = act.monthly || {};
+const hist = (data.history || {}).columns || [];
 const comps = data.comps;
 
 // What each block needs. A selected block without its data is skipped and reported, never drawn empty.
@@ -94,7 +98,7 @@ const needs = {
   property_snapshot: () => (isNum(units) && isNum(snap.occupancy_pct) ? null : "deal units and rent roll occupancy"),
   unit_mix: () => ((um.rows || []).length ? null : "a mapped rent roll"),
   rents_vs_market: () => ((um.rows || []).length ? null : "a mapped rent roll"),
-  operating_history: () => ((m.noi || []).length ? null : "a mapped T12 with monthly columns"),
+  operating_history: () => (hist.length && cols.length ? null : "more than 12 months of mapped operating statements"),
   operating_statement: () => (cols.length ? null : "a mapped T12"),
   proforma_cash_flow: () => ((hcf.noi || []).length ? null : "the client's model"),
   proforma_assumptions: () => ((data.assumptions || []).length ? null : "the client's model"),
@@ -109,6 +113,7 @@ const check = (name, ok, detail = "") => checks.push({ check: name, ok: !!ok, de
 const TOL = 1;
 const uses = (...b) => b.some((x) => rendered.includes(x));
 if (uses("operating_history", "operating_statement")) {
+  for (const h of hist) check(`History ${h.label}: NOI = EGR - OpEx and its months are stated`, Math.abs(h.egr - h.opex - h.noi) <= TOL && !!h.window);
   for (const c of cols) {
     const k = c.key;
     const rev = (act.revenue || []).reduce((a, r) => a + (r.values[k] || 0), 0);
@@ -118,18 +123,21 @@ if (uses("operating_history", "operating_statement")) {
     if (isNum(opex)) check(`Actual ${k}: expense lines sum to OpEx`, Math.abs(exp - opex) <= TOL, `${exp.toFixed(2)} vs ${opex}`);
     if ([egr, opex, noi].every(isNum)) check(`Actual ${k}: NOI = EGR - OpEx`, Math.abs(egr - opex - noi) <= TOL);
   }
-  check("Every actual line has a group", lines.every((l) => l.group), lines.filter((l) => !l.group).map((l) => l.label).join(", "));
+  check("Every actual line has a known category", lines.every((l) => CATS.includes(l.category)), lines.filter((l) => !CATS.includes(l.category)).map((l) => l.label).join(", "));
   check("Actual column windows are stated", cols.every((c) => c.window));
 }
 if (uses("operating_statement", "proforma_cash_flow") && pf) {
-  const g = pf.groups || {};
+  const g = pf.categories || {};
   const r = REV.reduce((a, [k]) => a + (g[k] || 0), 0), e = EXP.reduce((a, [k]) => a + (g[k] || 0), 0);
-  check("Pro forma: revenue groups sum to EGR", Math.abs(r - pf.egr) <= TOL, `${r} vs ${pf.egr}`);
-  check("Pro forma: expense groups sum to OpEx", Math.abs(e - pf.opex) <= TOL, `${e} vs ${pf.opex}`);
+  check("Pro forma: every category is filled", CATS.every((k) => isNum(g[k])), CATS.filter((k) => !isNum(g[k])).join(", "));
+  check("Pro forma: revenue categories sum to EGR", Math.abs(r - pf.egr) <= TOL, `${r} vs ${pf.egr}`);
+  check("Pro forma: expense categories sum to OpEx", Math.abs(e - pf.opex) <= TOL, `${e} vs ${pf.opex}`);
   check("Pro forma: NOI = EGR - OpEx", Math.abs(pf.egr - pf.opex - pf.noi) <= TOL);
   if ((hcf.noi || []).length) check("Pro forma Y1 NOI matches the cash flow's Y1", Math.abs(hcf.noi[0] - pf.noi) <= TOL);
 }
 if (uses("proforma_cash_flow")) {
+  const rv = hcf.revenue || {};
+  if (Object.keys(rv).length) hcf.egr.forEach((e, i) => check(`Cash flow ${hcf.years[i]}: revenue lines sum to EGR`, Math.abs(REV.reduce((a, [k]) => a + ((rv[k] || [])[i] || 0), 0) - e) <= TOL));
   hcf.noi.forEach((n, i) => { if (isNum((hcf.egr || [])[i]) && isNum((hcf.opex || [])[i])) check(`Cash flow ${hcf.years[i]}: NOI = EGR - OpEx`, Math.abs(hcf.egr[i] - hcf.opex[i] - n) <= TOL); });
 }
 if (uses("unit_mix", "rents_vs_market", "rent_comps", "property_snapshot") && (um.rows || []).length) {
@@ -194,105 +202,125 @@ const draw = {
     const s = block("Property snapshot", subject(deal.address, `Rent roll as of ${rrDate}`), `Radix deal record and rent roll as of ${rrDate}. Contractual rent.`);
     const tiles = [
       ["Units", int(units)], ["Year built", deal.year_built ? String(deal.year_built) : "-"],
-      ["Average unit size", isNum((um.total || {}).avg_sf) ? `${int(um.total.avg_sf)} SF` : "-"], ["Occupancy", pct(snap.occupancy_pct)],
-      ["Vacant units", int(snap.vacant_units)], ["Average market rent", money(snap.market_rent)],
+      ["Rentable SF", isNum(deal.total_sf) ? int(deal.total_sf) : "-"], ["Average unit size", isNum((um.total || {}).avg_sf) ? `${int(um.total.avg_sf)} SF` : "-"],
+      ["Occupancy", pct(snap.occupancy_pct)], ["Average market rent", money(snap.market_rent)],
       ["Average in-place rent", money(snap.in_place_rent)], ["In-place as % of market", pct(snap.pct_of_market)],
     ];
     const gap = 0.25, tw = (CW - 3 * gap) / 4, th = 2.3;
     tiles.forEach(([label, val], i) => {
       const x = X0 + (i % 4) * (tw + gap), y = TOP + 0.1 + Math.floor(i / 4) * (th + gap);
-      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: tw, h: th, rectRadius: 0.08, fill: { color: i < 4 ? "FFFFFF" : "FFFFFF" }, line: { color: RULE, width: 0.75 } });
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: tw, h: th, rectRadius: 0.08, fill: { color: "FFFFFF" }, line: { color: RULE, width: 0.75 } });
       T(s, label, { x: x + 0.3, y: y + 0.35, w: tw - 0.6, h: 0.35, fontSize: 13, color: MUTED });
       T(s, val, { x: x + 0.3, y: y + 0.9, w: tw - 0.6, h: 0.8, fontSize: 32, bold: true, color: PRIMARY });
     });
   },
 
   unit_mix() {
-    const s = block("Unit mix", subject(`Rent roll as of ${rrDate}`), `Radix rent roll as of ${rrDate}. Contractual rent. Market rent per SF derived.`);
-    const rows = um.rows.map((r) => ({ cells: [unitType(r), int(r.units), pct(100 * r.units / units), int(r.avg_sf), money(r.market_rent),
-      money(r.in_place_rent), isNum(r.market_rent) && r.avg_sf ? `$${(r.market_rent / r.avg_sf).toFixed(2)}` : "-", pct(r.occupied_pct)] }));
+    const s = block("Unit mix", subject(`Rent roll as of ${rrDate}`), `Radix rent roll as of ${rrDate}. Contractual rent. Rent per SF and % of units derived.`);
+    const psf = (rent, sf) => (isNum(rent) && sf ? `$${(rent / sf).toFixed(2)}` : "-");
+    const rows = um.rows.map((r) => ({ cells: [unitType(r), int(r.units), pct(100 * r.units / units), int(r.avg_sf), money(r.market_rent), psf(r.market_rent, r.avg_sf),
+      money(r.in_place_rent), psf(r.in_place_rent, r.avg_sf), pct(r.occupied_pct)] }));
     const t = um.total;
-    rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", int(t.units), "100.0%", int(t.avg_sf), money(t.market_rent), money(t.in_place_rent), `$${(t.market_rent / t.avg_sf).toFixed(2)}`, pct(t.occupied_pct)] });
+    rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", int(t.units), "100.0%", int(t.avg_sf), money(t.market_rent), psf(t.market_rent, t.avg_sf), money(t.in_place_rent), psf(t.in_place_rent, t.avg_sf), pct(t.occupied_pct)] });
     const rowH = 0.4;
-    table(s, ["Unit type", "Units", "% of units", "Avg SF", "Market rent", "In-place rent", "Market $/SF", "Occupied"], rows,
-      { x: X0, y: TOP, w: CW, colW: evenCols(CW, 2.6, 7), fontSize: 12, rowH });
+    table(s, ["Unit type", "Units", "% of units", "Avg SF", "Market rent", "Market $/SF", "In-place rent", "In-place $/SF", "Occupied"], rows,
+      { x: X0, y: TOP, w: CW, colW: evenCols(CW, 2.4, 8), fontSize: 12, rowH });
     const bottom = TOP + rowH * (rows.length + 1);
     if (BOTTOM - bottom > 1.6) s.addChart(pres.charts.BAR, [{ name: "Units", labels: um.rows.map(unitType), values: um.rows.map((r) => r.units) }],
       Object.assign(chartBase("Units by unit type"), { x: X0, y: bottom + 0.3, w: CW, h: BOTTOM - bottom - 0.3, barDir: "bar", barGapWidthPct: 45, catAxisOrientation: "maxMin",
         chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "#,##0", showLegend: false, valAxisHidden: true, valGridLine: { style: "none" } }));
   },
 
+  // Where in-place rents sit against market, and what recent leases achieved.
   rents_vs_market() {
     const s = block("Rents vs. market", subject(`Rent roll as of ${rrDate}`),
-      `Radix rent roll as of ${rrDate}. Contractual rent. % of market: in-place rent as a share of market rent. Last 90 days: average rent on leases signed in the 90 days before the rent roll date.`);
+      `Radix rent roll as of ${rrDate}. Contractual rent. Gap to market (market less in-place, per unit per month) derived. Last 90 days: average rent on leases signed in the 90 days before the rent roll date.`);
     const labels = um.rows.map(unitType);
     s.addChart(pres.charts.BAR, [
       { name: "Market rent", labels, values: um.rows.map((r) => Math.round(r.market_rent)) },
       { name: "In-place rent", labels, values: um.rows.map((r) => Math.round(r.in_place_rent)) },
       { name: "Leases, last 90 days", labels, values: um.rows.map((r) => Math.round(r.last90_rent || 0)) },
     ], Object.assign(chartBase("Average rent per unit per month"), {
-      x: X0, y: TOP, w: 6.6, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, ACCENT, HUSH],
+      x: X0, y: TOP, w: 6.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, ACCENT, HUSH],
       showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b",
     }));
-    const rows = um.rows.map((r) => ({ cells: [unitType(r), int(r.units), money(r.market_rent), money(r.in_place_rent), pct(r.pct_of_market), isNum(r.last90_rent) ? money(r.last90_rent) : "-"] }));
+    const gap = (r) => (isNum(r.market_rent) && isNum(r.in_place_rent) ? money(r.market_rent - r.in_place_rent) : "-");
+    const rows = um.rows.map((r) => ({ cells: [unitType(r), int(r.units), money(r.market_rent), money(r.in_place_rent), gap(r), pct(r.pct_of_market), isNum(r.last90_rent) ? money(r.last90_rent) : "-"] }));
     const t = um.total;
-    rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", int(t.units), money(t.market_rent), money(t.in_place_rent), pct(t.pct_of_market), money(t.last90_rent)] });
-    const x = 7.45, w = W - X0 - x;
-    table(s, ["Unit type", "Units", "Market", "In-place", "% of market", "Last 90 days"], rows, { x, y: TOP, w, colW: [1.4, 0.6, 0.8, 0.8, 0.9, w - 4.5], fontSize: 10, rowH: 0.38 });
+    rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", int(t.units), money(t.market_rent), money(t.in_place_rent), gap(t), pct(t.pct_of_market), money(t.last90_rent)] });
+    const x = 7.0, w = W - X0 - x;
+    table(s, ["Unit type", "Units", "Market", "In-place", "Gap to market", "% of market", "Last 90 days"], rows,
+      { x, y: TOP, w, colW: [1.35, 0.55, 0.72, 0.72, 0.85, 0.8, w - 4.99], fontSize: 11, rowH: 0.55 });
   },
 
+  // Historical operating summary: each period Radix holds, side by side, as OMs show it. No monthly noise.
   operating_history() {
-    const s = block("Operating history", subject(`T12 ${cols[0] ? cols[0].window : ""}`), "Radix operating statement, actuals. T3 and T1 are annualized.");
-    const labels = (m.months || []).map(ym);
-    s.addChart(pres.charts.LINE, [
-      { name: "Effective gross revenue", labels, values: m.egr.map(Math.round) },
-      { name: "Operating expenses", labels, values: m.opex.map(Math.round) },
-      { name: "Net operating income", labels, values: m.noi.map(Math.round) },
-    ], Object.assign(chartBase("By month"), {
-      x: X0, y: TOP, w: 7.1, h: BOTTOM - TOP, chartColors: [ACCENT, HUSH, PRIMARY], lineSize: 2, lineDataSymbol: "circle", lineDataSymbolSize: 5,
-      valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b",
-    }));
-    const rows = [["egr", "Effective gross revenue"], ["opex", "Operating expenses"], ["noi", "Net operating income"]]
-      .map(([k, l]) => ({ bold: k === "noi", fill: k === "noi" ? TINT : undefined, cells: [l].concat(cols.map((c) => money((act[k] || {})[c.key]))) }));
-    rows.push({ muted: true, cells: ["NOI per unit"].concat(cols.map((c) => money((act.noi || {})[c.key] / units))) });
-    const x = 8.0, w = W - X0 - x;
-    table(s, ["$ annual"].concat(cols.map((c) => c.label)), rows, { x, y: TOP, w, colW: evenCols(w, 2.0, cols.length), fontSize: 10, rowH: 0.4 });
-    T(s, cols.map((c) => `${c.label}: ${c.window}`).join("\n"), { x, y: TOP + 0.4 * (rows.length + 1) + 0.2, w, h: 0.9, fontSize: 10, color: FAINT });
+    const periods = hist.map((h) => ({ label: h.label, window: h.window, egr: h.egr, opex: h.opex, noi: h.noi }))
+      .concat(cols.filter((c) => c.key !== "T1").map((c) => ({ label: c.label, window: c.window, egr: (act.egr || {})[c.key], opex: (act.opex || {})[c.key], noi: (act.noi || {})[c.key] })));
+    const s = block("Operating history", subject(`${periods.length} periods`), `Radix operating statements, actuals. Partial years and T3 are annualized. Per-unit figures and expense ratio derived.`);
+    const per = (v) => (isNum(v) && units ? money(v / units) : "-");
+    const rows = [
+      { cells: ["Effective gross revenue"].concat(periods.map((p) => money(p.egr))) },
+      { muted: true, cells: ["   Per unit"].concat(periods.map((p) => per(p.egr))) },
+      { cells: ["Operating expenses"].concat(periods.map((p) => money(p.opex))) },
+      { muted: true, cells: ["   Per unit"].concat(periods.map((p) => per(p.opex))) },
+      { muted: true, cells: ["   Expense ratio"].concat(periods.map((p) => (isNum(p.opex) && p.egr ? pct(100 * p.opex / p.egr) : "-"))) },
+      { bold: true, fill: TINT, cells: ["Net operating income"].concat(periods.map((p) => money(p.noi))) },
+      { muted: true, cells: ["   Per unit"].concat(periods.map((p) => per(p.noi))) },
+    ];
+    const rowH = 0.36;
+    table(s, ["$ annual"].concat(periods.map((p) => p.label)), rows, { x: X0, y: TOP, w: CW, colW: evenCols(CW, 3.0, periods.length), fontSize: 11, rowH });
+    const y = TOP + rowH * (rows.length + 1) + 0.15;
+    T(s, periods.map((p) => `${p.label}: ${p.window}`).join("   ·   "), { x: X0, y, w: CW, h: 0.3, fontSize: 10, color: FAINT });
+    const cy = y + 0.45;
+    if (BOTTOM - cy > 1.4) s.addChart(pres.charts.BAR, [
+      { name: "Effective gross revenue", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.egr)) },
+      { name: "Operating expenses", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.opex)) },
+      { name: "Net operating income", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.noi)) },
+    ], Object.assign(chartBase(""), { showTitle: false, x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 80, chartColors: [ACCENT, HUSH, PRIMARY],
+      showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0.00,,\"M\"", valAxisHidden: true, valGridLine: { style: "none" }, showLegend: true, legendPos: "r" }));
   },
 
-  // Actuals by group; with the client's model, the Year 1 pro forma next to them.
+  // Line breakdown OMs use; with the client's model, the Year 1 pro forma next to the actuals.
   operating_statement() {
     const title = pf ? "Actuals to pro forma" : "Operating statement";
-    const s = block(title, subject(cols.map((c) => `${c.label} ${c.window}`).join(" · ")),
-      `Actuals from the Radix operating statement.${pf ? ` Pro forma from ${modelFile}.` : ""} Groups${pf ? ", per-unit figures and changes" : " and per-unit figures"} derived.`);
-    const header = ["$ annual"].concat(cols.map((c) => c.label)).concat(pf ? [pf.label || "Year 1 pro forma", "Per unit", "Change vs T12"] : ["T12 per unit"]);
+    const acols = cols.filter((c) => c.key !== "T1");
+    const s = block(title, subject(acols.map((c) => `${c.label} ${c.window}`).join(" · ")),
+      `Actuals from the Radix operating statement; T3 is annualized.${pf ? ` Pro forma from ${modelFile}.` : ""} Line categories, per-unit figures${pf ? " and changes" : ""} derived.`);
+    const t12 = acols.find((c) => c.key === "T12") ? "T12" : acols[0].key;
+    const header = ["$ annual"].concat(acols.flatMap((c) => (c.key === t12 ? [c.label, "Per unit"] : [c.label])))
+      .concat(pf ? [pf.label || "Year 1 pro forma", "Per unit", `Change vs ${t12}`] : []);
+    const per = (v) => (isNum(v) && units ? money(v / units) : "-");
     const mk = (key, label, opt = {}) => {
-      const cells = [label].concat(cols.map((c) => money(actualOf(key, c.key))));
-      if (pf) {
-        const p = pfOf(key), a = actualOf(key, "T12");
-        cells.push(money(p), isNum(p) && units ? money(p / units) : "-", signedCompact(isNum(p) && isNum(a) ? p - a : null));
-      } else {
-        const a = actualOf(key, "T12");
-        cells.push(isNum(a) && units ? money(a / units) : "-");
-      }
+      const cells = [label].concat(acols.flatMap((c) => { const v = actualOf(key, c.key); return c.key === t12 ? [money(v), per(v)] : [money(v)]; }));
+      if (pf) { const p = pfOf(key), a = actualOf(key, t12); cells.push(money(p), per(p), signedCompact(isNum(p) && isNum(a) ? p - a : null)); }
       return Object.assign({ cells }, opt);
     };
     const sec = (t) => ({ bold: true, muted: true, fill: CANVAS, cells: [t].concat(Array(header.length - 1).fill("")) });
     const rows = [sec("Revenue")].concat(REV.map(([k, l]) => mk(k, l)), [mk("egr", "Effective gross revenue", { bold: true }), sec("Operating expenses")],
       EXP.map(([k, l]) => mk(k, l)), [mk("opex", "Total operating expenses", { bold: true }), mk("noi", "Net operating income", { bold: true, fill: TINT })]);
-    table(s, header, rows, { x: X0, y: TOP, w: CW, colW: evenCols(CW, 3.0, header.length - 1), fontSize: 11, rowH: 0.34 });
+    const rowH = Math.min(0.3, (BOTTOM - TOP) / (rows.length + 1));
+    table(s, header, rows, { x: X0, y: TOP, w: CW, colW: evenCols(CW, 3.1, header.length - 1), fontSize: 10, rowH });
   },
 
   proforma_cash_flow() {
     const years = hcf.years || hcf.noi.map((_, i) => `Year ${i + 1}`);
-    const s = block("Pro forma cash flow", subject(`${years.length}-year hold`), `From ${modelFile || "the client model"}.`);
-    s.addChart(pres.charts.BAR, [{ name: "Net operating income", labels: years, values: hcf.noi.map(Math.round) }], Object.assign(chartBase("Net operating income by year"), {
-      x: X0, y: TOP, w: CW, h: 2.9, barDir: "col", barGapWidthPct: 70, chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", valAxisMinVal: 0,
-      dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: false,
+    const s = block("Pro forma cash flow", subject(`${years.length}-year hold`), `From ${modelFile || "the client model"}. NOI per unit and growth derived.`);
+    const rv = hcf.revenue || {};
+    const rows = [];
+    for (const [k, l] of REV) if (rv[k]) rows.push({ cells: [l].concat(rv[k].map((v) => money(v))) });
+    rows.push({ bold: true, cells: ["Effective gross revenue"].concat(hcf.egr.map((v) => money(v))) });
+    rows.push({ cells: ["Operating expenses"].concat(hcf.opex.map((v) => money(-v))) });
+    rows.push({ bold: true, fill: TINT, cells: ["Net operating income"].concat(hcf.noi.map((v) => money(v))) });
+    rows.push({ muted: true, cells: ["   Per unit"].concat(hcf.noi.map((v) => (units ? money(v / units) : "-"))) });
+    rows.push({ muted: true, cells: ["   Growth"].concat(hcf.noi.map((v, i) => (i && hcf.noi[i - 1] ? pct(100 * (v / hcf.noi[i - 1] - 1)) : "-"))) });
+    const rowH = 0.34;
+    table(s, ["$"].concat(years), rows, { x: X0, y: TOP, w: CW, colW: evenCols(CW, 2.8, years.length), fontSize: 10, rowH });
+    const cy = TOP + rowH * (rows.length + 1) + 0.25;
+    if (BOTTOM - cy > 1.3) s.addChart(pres.charts.BAR, [{ name: "Net operating income", labels: years, values: hcf.noi.map(Math.round) }], Object.assign(chartBase("Net operating income by year"), {
+      x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 70, chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", valAxisMinVal: 0,
+      dataLabelFormatCode: "$#,##0", valAxisHidden: true, valGridLine: { style: "none" }, showLegend: false,
     }));
-    const rows = [["egr", "Effective gross revenue"], ["opex", "Operating expenses"], ["noi", "Net operating income"]].filter(([k]) => hcf[k])
-      .map(([k, l]) => ({ bold: k === "noi", fill: k === "noi" ? TINT : undefined, cells: [l].concat(hcf[k].map((v) => money(v))) }));
-    table(s, ["$"].concat(years), rows, { x: X0, y: 4.6, w: CW, colW: evenCols(CW, 2.6, years.length), fontSize: 11, rowH: 0.38 });
   },
 
   proforma_assumptions() {
@@ -308,7 +336,7 @@ const draw = {
   },
 
   rent_comps() {
-    const s = block("Rent comparables", subject(`${comps.deals.length} comparable propert${comps.deals.length === 1 ? "y" : "ies"} in Radix`), comps.source || "Radix rent comp set. Contractual rent.");
+    const s = block("Rent comparables", subject(`${comps.deals.length} comparable propert${comps.deals.length === 1 ? "y" : "ies"} in Radix`), `${comps.source || "Radix rent comp set."} Contractual rent. In-place rent per SF derived.`);
     const subj = {}; for (const r of um.rows || []) subj[typeKey(r)] = r;
     const deals = comps.deals;
     const all = {}; for (const r of (um.rows || []).concat(...deals.map((d) => d.rows))) all[typeKey(r)] = r;
@@ -321,19 +349,20 @@ const draw = {
       Object.assign(chartBase("Average in-place rent by unit type"), { x: X0, y: TOP, w: 5.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, HUSH, ACCENT, "D5D7DA", "717680", "BACFF9"],
         showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b" }));
     const rows = [];
+    const psf = (r) => (isNum(r.in_place_rent) && r.avg_sf ? `$${(r.in_place_rent / r.avg_sf).toFixed(2)}` : "-");
     const addProp = (name, asOf, rowsBy, total, fill) => {
-      rows.push({ bold: true, fill: fill || CANVAS, cells: [`${name} · as of ${asOf}`, "", "", "", "", ""] });
+      rows.push({ bold: true, fill: fill || CANVAS, cells: [`${name} · as of ${asOf}`, "", "", "", "", "", ""] });
       for (const k of present) {
         const r = rowsBy[k]; if (!r) continue;
-        rows.push({ cells: [`   ${unitType(r)}`, int(r.units), int(r.avg_sf), money(r.market_rent), money(r.in_place_rent), pct(r.occupied_pct)] });
+        rows.push({ cells: [`   ${unitType(r)}`, int(r.units), int(r.avg_sf), money(r.market_rent), money(r.in_place_rent), psf(r), pct(r.occupied_pct)] });
       }
-      if (total) rows.push({ bold: true, cells: ["   Total / avg", int(total.units), int(total.avg_sf), money(total.market_rent), money(total.in_place_rent), pct(total.occupied_pct)] });
+      if (total) rows.push({ bold: true, cells: ["   Total / avg", int(total.units), int(total.avg_sf), money(total.market_rent), money(total.in_place_rent), psf(total), pct(total.occupied_pct)] });
     };
     addProp(`${deal.name} (subject)`, rrDate, subj, um.total, TINT);
     for (const d of deals) { const by = {}; for (const r of d.rows) by[typeKey(r)] = r; addProp(`${d.name}, ${d.city}`, dateLabel(d.as_of), by, d.total); }
     const x = 6.0, w = W - X0 - x;
     const rowH = Math.min(0.3, (BOTTOM - TOP) / (rows.length + 1));
-    table(s, ["Property / unit type", "Units", "Avg SF", "Market", "In-place", "Occupied"], rows, { x, y: TOP, w, colW: [3.05, 0.65, 0.7, 0.8, 0.8, w - 6.0], fontSize: rowH < 0.3 ? 9 : 10, rowH });
+    table(s, ["Property / unit type", "Units", "Avg SF", "Market", "In-place", "In-place $/SF", "Occupied"], rows, { x, y: TOP, w, colW: [w - 4.55, 0.55, 0.6, 0.7, 0.7, 1.05, 0.95], fontSize: rowH < 0.3 ? 9 : 10, rowH });
   },
 };
 
