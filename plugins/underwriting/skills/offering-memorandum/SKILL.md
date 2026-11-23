@@ -1,6 +1,6 @@
 ---
 name: offering-memorandum
-description: Build an Offering Memorandum (OM) for a Radix deal as an editable PowerPoint deck plus PDF - cover, executive summary and offering terms, property overview, unit mix by floor plan, rents and recent leasing, operating history, T12-to-pro-forma financial analysis, pro forma cash flow and assumptions, rent comparables from Radix, sales comparables and market overview - using the deal's rent roll and operating statement from Radix and the pro forma from the client's model. Native slides, tables and charts the broker can restyle; every figure ties to its source and missing data is flagged, never invented. Use whenever a user asks for an OM, offering memorandum, offering memo, marketing package, deal book or listing deck for a property, even if they don't say "OM". Requires the Radix Underwriting MCP.
+description: Build an Offering Memorandum (OM) for a Radix deal as an editable PowerPoint deck plus PDF - cover, executive summary and offering terms, property overview, unit mix by bed / bath, rents and recent leasing, operating history, T12-to-pro-forma financial analysis, pro forma cash flow and assumptions, rent comparables from Radix, sales comparables and market overview - using the deal's rent roll and operating statement from Radix and the pro forma from the client's model. Native slides, tables and charts the broker can restyle; every figure ties to its source and missing data is flagged, never invented. Use whenever a user asks for an OM, offering memorandum, offering memo, marketing package, deal book or listing deck for a property, even if they don't say "OM". Requires the Radix Underwriting MCP.
 ---
 
 # Offering Memorandum
@@ -43,10 +43,9 @@ The broker team comes from `firm.contact_lines` in the brand profile; the OM dis
 
 ## Step 3: Radix data
 
-- **Floor plans:** `get_floor_plan_summary` with `groupBy: "floorPlan"` → `floor_plans` (plan code, beds, baths, units, avg SF, market and in-place rent, occupancy) and the total.
-- **Bedrooms:** `get_floor_plan_summary` with `groupBy: "unitMix"` → `bedrooms`, including `last90DaysRent` as `last90_rent`, `pctOfMarket`, and the total. Snapshot occupancy is the total's `occupiedPct`.
+- **Unit mix:** `get_floor_plan_summary` with `groupBy: "unitMixBath"` → `unit_mix` rows (beds, baths, units, avg SF, market and in-place rent, `pctOfMarket`, `last30DaysRent` and `last90DaysRent`, occupancy) and the total. The unit mix is always by bed / bath, never by floor plan or bedrooms alone; the unit mix, rents and comps slides all use it. Snapshot occupancy is the total's `occupiedPct`.
 - **Operating statement:** exactly as in the ic-memo skill: `level: "cashFlow"`, `period: "monthly"`, the 12-month window ending at the latest period end, metrics T12, T3 and T1 annualized; lines with a `group`, totals, and `actuals.monthly` from `summaryByColumn` (the operating history chart).
-- **Rent comps:** `get_rent_comp_set` with `dealFilter: {"market": "<the deal's market>"}` and a `dataWindow` starting about 18 months back. Drop the subject from the list. For each comp (up to 5, newest data first), `get_floor_plan_summary` with `groupBy: "unitMix"` for its rows and total. Run comp sets one at a time. Fewer than 3 comps: say so and keep what exists.
+- **Rent comps:** `get_rent_comp_set` with `dealFilter: {"market": "<the deal's market>"}` and a `dataWindow` starting about 18 months back. Drop the subject from the list. For each comp (up to 5, newest data first), `get_floor_plan_summary` with `groupBy: "unitMixBath"` for its rows and total. The comps chart shows the unit types every property has; the table lists each property's own. Run comp sets one at a time. Fewer than 3 comps: say so and keep what exists.
 
 ## Step 4: The client's model
 
@@ -67,7 +66,7 @@ Both land in the deck for the broker to edit; say so in the reply.
 node scripts/build_om.js --om om.json --brand brand.json --out out --pdf
 ```
 
-- **Exit code 2** means the accuracy gate failed (lines don't sum to totals, pro forma groups don't tie, floor plans or bedrooms don't add to the unit count, occupancy disagrees, or the drafted text cites a figure the deck doesn't print). Fix `om.json` and rerun. Never pass `--force` unless the user asks.
+- **Exit code 2** means the accuracy gate failed (lines don't sum to totals, pro forma groups don't tie, the unit mix doesn't add to the unit count, occupancy disagrees, or the drafted text cites a figure the deck doesn't print). Fix `om.json` and rerun. Never pass `--force` unless the user asks.
 - If you can render slides to images, look at every slide for text running out of its box before delivering.
 
 ## Output

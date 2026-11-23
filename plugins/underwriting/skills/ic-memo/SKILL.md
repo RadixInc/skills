@@ -51,7 +51,7 @@ No mapped rent roll or actuals statement → say so and offer to continue with w
 
 ## Step 3: Actuals from Radix
 
-**Rent roll:** `get_floor_plan_summary` with `groupBy: "unitMix"` → `unit_mix` rows and total; snapshot occupancy is the total's `occupiedPct`, `occupied_units` the total's `occupiedNumberOfUnits`.
+**Rent roll:** `get_floor_plan_summary` with `groupBy: "unitMixBath"` → `unit_mix` rows (with `beds` and `baths`) and total. The unit mix is always by bed / bath, never by floor plan or bedrooms alone; snapshot occupancy is the total's `occupiedPct`, `occupied_units` the total's `occupiedNumberOfUnits`.
 
 **Operating statement:** `get_operating_statement` with `level: "cashFlow"`, `basis: "total"`, `period: "monthly"`, `metrics: ["T12", "T3Annualized", "T1Annualized"]`, and the **12-month window ending at the latest period end** (`yearFrom`/`monthFrom` to `yearTo`/`monthTo`). Metrics only cover months inside the requested window; a shorter window returns T12 as null.
 

@@ -133,6 +133,15 @@ def group_sum(lines, group, col):
     return sum(vals) if vals else None
 
 
+def unit_type(r):
+    """Unit mix rows are by bed / bath (groupBy unitMixBath). Older files may carry only a label."""
+    if is_num(r.get("beds")) and is_num(r.get("baths")):
+        b = r["baths"]
+        baths = str(int(b)) if float(b).is_integer() else f"{b:.1f}"
+        return f'{"Studio" if r["beds"] == 0 else str(int(r["beds"])) + " bed"} / {baths} bath'
+    return r.get("label", "")
+
+
 def derive(memo):
     """Every derived figure, once. Arithmetic on inputs only; nothing estimated."""
     d = {}
@@ -437,7 +446,7 @@ def build_html(memo, brand, der, S):
     if deal.get("total_sf"):
         facts.append(f"{S.add(fmt_int(deal['total_sf']))} SF")
     um = memo.get("unit_mix") or {}
-    mix_line = " · ".join(f"{S.add(fmt_int(r['units']))} × {esc(r['label'])}" for r in um.get("rows", []) if r.get("units"))
+    mix_line = " · ".join(f"{S.add(fmt_int(r['units']))} × {esc(unit_type(r))}" for r in um.get("rows", []) if r.get("units"))
     if is_num(snap.get("occupancy_pct")):
         mix_line += f" · {S.add(fmt_pct(snap['occupancy_pct']))} occupied on the {esc(date_label(rr.get('as_of')))} rent roll"
     com = memo.get("commentary") or {}
@@ -1001,7 +1010,7 @@ def write_docx(memo, brand, der, docx_path):
     um = memo.get("unit_mix") or {}
     if um.get("rows"):
         heading("Appendix · unit mix (Radix rent roll)")
-        rws = [[r["label"], fmt_int(r.get("units")), fmt_int(r.get("avg_sf")), fmt_money(r.get("market_rent")),
+        rws = [[unit_type(r), fmt_int(r.get("units")), fmt_int(r.get("avg_sf")), fmt_money(r.get("market_rent")),
                 fmt_money(r.get("in_place_rent")), fmt_pct(r.get("occupied_pct"))] for r in um["rows"]]
         t = um.get("total") or {}
         rws.append(["Total / avg", fmt_int(t.get("units")), fmt_int(t.get("avg_sf")), fmt_money(t.get("market_rent")),

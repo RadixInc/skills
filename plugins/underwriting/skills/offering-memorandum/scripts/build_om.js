@@ -108,9 +108,13 @@ if (pf) {
   const hn = (om.hold_cash_flow || {}).noi || [];
   if (hn.length) check("Pro forma Y1 NOI matches the cash flow's Y1", Math.abs(hn[0] - pf.noi) <= TOL);
 }
-const fp = om.floor_plans || {}, bd = om.bedrooms || {};
-if (fp.rows) check("Floor plans add to the deal unit count", fp.rows.reduce((a, r) => a + (r.units || 0), 0) === units);
-if (bd.rows) check("Bedroom summary adds to the deal unit count", bd.rows.reduce((a, r) => a + (r.units || 0), 0) === units);
+// Unit mix is always by bed / bath (groupBy unitMixBath), never by floor plan.
+const bd = om.unit_mix || {};
+const bathLabel = (b) => (Number.isInteger(b) ? String(b) : Number(b).toFixed(1));
+const unitType = (r) => `${r.beds === 0 ? "Studio" : `${r.beds} bed`} / ${bathLabel(r.baths)} bath`;
+const typeKey = (r) => `${r.beds}-${r.baths}`;
+if (bd.rows) check("Unit mix rows have beds and baths", bd.rows.every((r) => isNum(r.beds) && isNum(r.baths)));
+if (bd.rows) check("Unit mix adds to the deal unit count", bd.rows.reduce((a, r) => a + (r.units || 0), 0) === units);
 if (isNum(snap.occupancy_pct) && bd.total && isNum(bd.total.occupied_pct)) check("Occupancy matches the rent roll total", Math.abs(snap.occupancy_pct - bd.total.occupied_pct) < 0.05);
 check("Rent roll as-of date is stated", !!(src.rent_roll || {}).as_of);
 check("Actual column windows are stated", cols.every((c) => c.window));
@@ -245,22 +249,27 @@ for (const tok of String(deal.address || "").match(/\d+/g) || []) shown.add(tok)
   else { placeholderBox(s, 7.5, 1.35, 5.23, 5.1, "Location map", "Add a site or location map. Maps aren't generated yet."); placeholders.push("Location map."); }
 }
 
-// ===== 4. Unit mix by floor plan
-if (fp.rows) {
+// ===== 4. Unit mix by bed / bath
+if (bd.rows) {
   const s = content("Unit mix", "Property");
-  const rows = fp.rows.map((r) => ({ cells: [r.plan, `${r.beds} / ${r.baths}`, S(int(r.units)), S(pct(100 * r.units / units)), S(int(r.avg_sf)), SM(r.market_rent),
+  const rows = bd.rows.map((r) => ({ cells: [unitType(r), S(int(r.units)), S(pct(100 * r.units / units)), S(int(r.avg_sf)), SM(r.market_rent),
     isNum(r.in_place_rent) ? SM(r.in_place_rent) : "-", isNum(r.market_rent) && r.avg_sf ? `$${(r.market_rent / r.avg_sf).toFixed(2)}` : "-", S(pct(r.occupied_pct))] }));
-  const t = fp.total;
-  rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", "", S(int(t.units)), "100.0%", S(int(t.avg_sf)), SM(t.market_rent), SM(t.in_place_rent), `$${(t.market_rent / t.avg_sf).toFixed(2)}`, S(pct(t.occupied_pct))] });
-  table(s, ["Floor plan", "Bed / bath", "Units", "% of units", "Avg SF", "Market rent", "In-place rent", "Market $/SF", "Occupied"], rows,
-    { x: X0, y: 1.3, w: CW, colW: [2.1, 1.2, 1.0, 1.2, 1.1, 1.45, 1.45, 1.3, 1.33], fontSize: 11, rowH: 0.33 });
+  const t = bd.total;
+  rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", S(int(t.units)), "100.0%", S(int(t.avg_sf)), SM(t.market_rent), SM(t.in_place_rent), `$${(t.market_rent / t.avg_sf).toFixed(2)}`, S(pct(t.occupied_pct))] });
+  table(s, ["Unit type", "Units", "% of units", "Avg SF", "Market rent", "In-place rent", "Market $/SF", "Occupied"], rows,
+    { x: X0, y: 1.3, w: CW, colW: [2.6, 1.2, 1.4, 1.3, 1.6, 1.6, 1.5, CW - 11.2], fontSize: 12, rowH: 0.4 });
+  const tableBottom = 1.3 + 0.4 * (bd.rows.length + 2);
+  if (6.4 - tableBottom > 1.6) s.addChart(pres.charts.BAR, [{ name: "Units", labels: bd.rows.map(unitType), values: bd.rows.map((r) => r.units) }],
+    Object.assign(chartBase(), { x: X0, y: tableBottom + 0.3, w: CW, h: 6.4 - tableBottom - 0.35, barDir: "bar", barGapWidthPct: 45, catAxisOrientation: "maxMin", chartColors: [PRIMARY],
+      showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "#,##0", showLegend: false, valAxisHidden: true, valGridLine: { style: "none" },
+      showTitle: true, title: "Units by unit type", titleFontFace: FONT, titleFontSize: 12, titleColor: STRONG }));
   note(s, `Radix rent roll as of ${dateLabel((src.rent_roll || {}).as_of)}. Contractual rent. Market $/SF derived.`, 6.62);
 }
 
 // ===== 5. Rents vs market by bedroom
 if (bd.rows) {
   const s = content("Rents and recent leasing", "Property");
-  const labels = bd.rows.map((r) => r.label);
+  const labels = bd.rows.map(unitType);
   s.addChart(pres.charts.BAR, [
     { name: "Market rent", labels, values: bd.rows.map((r) => Math.round(r.market_rent)) },
     { name: "In-place rent", labels, values: bd.rows.map((r) => Math.round(r.in_place_rent)) },
@@ -270,12 +279,12 @@ if (bd.rows) {
     showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0",
     showLegend: true, legendPos: "b", showTitle: true, title: "Average rent per unit per month", titleFontFace: FONT, titleFontSize: 12, titleColor: STRONG,
   }));
-  const rows = bd.rows.map((r) => ({ cells: [r.label, S(int(r.units)), SM(r.market_rent), SM(r.in_place_rent), S(pct(r.pct_of_market)), isNum(r.last90_rent) ? SM(r.last90_rent) : "-", S(pct(r.occupied_pct))] }));
+  const rows = bd.rows.map((r) => ({ cells: [unitType(r), S(int(r.units)), SM(r.market_rent), SM(r.in_place_rent), S(pct(r.pct_of_market)), isNum(r.last90_rent) ? SM(r.last90_rent) : "-", S(pct(r.occupied_pct))] }));
   const t = bd.total;
   rows.push({ bold: true, fill: CANVAS, cells: ["Total / avg", S(int(t.units)), SM(t.market_rent), SM(t.in_place_rent), S(pct(t.pct_of_market)), SM(t.last90_rent), S(pct(t.occupied_pct))] });
   const rw = W - X0 - 7.45;
   table(s, ["", "Units", "Market", "In-place", "% mkt", "Last 90d", "Occ."], rows,
-    { x: 7.45, y: 1.3, w: rw, colW: [1.0, 0.6, 0.75, 0.75, 0.7, 0.75, rw - 4.55], fontSize: 11, rowH: 0.36 });
+    { x: 7.45, y: 1.3, w: rw, colW: [1.3, 0.5, 0.68, 0.68, 0.62, 0.72, rw - 4.5], fontSize: 10, rowH: 0.36 });
   T(s, "% mkt: in-place rent as a share of market rent. Last 90d: average rent on leases signed in the 90 days before the rent roll date. Occ.: occupied units.", { x: 7.45, y: 3.65, w: rw, h: 0.8, fontSize: 10, color: FAINT });
   note(s, `Radix rent roll as of ${dateLabel((src.rent_roll || {}).as_of)}. Contractual rent.`, 6.62);
 }
@@ -357,27 +366,29 @@ if ((om.assumptions || []).length) {
 const comps = om.comps;
 if (comps && (comps.deals || []).length) {
   const s = content("Rent comparables", "Market");
-  const beds = ["Studio", "1 Bed", "2 Bed", "3 Bed"];
-  const subj = {}; for (const r of bd.rows || []) subj[r.label] = r;
+  const subj = {}; for (const r of bd.rows || []) subj[typeKey(r)] = r;
   const deals = comps.deals;
-  const present = beds.filter((b) => subj[b] || deals.some((d) => d.rows.some((r) => r.label === b)));
-  const chartBeds = present.filter((b) => subj[b]);
-  s.addChart(pres.charts.BAR, [{ name: `${(comps.subject || {}).name || deal.name} (subject)`, labels: chartBeds, values: chartBeds.map((b) => Math.round(subj[b].in_place_rent)) }]
-    .concat(deals.map((d) => ({ name: d.name, labels: chartBeds, values: chartBeds.map((b) => { const r = d.rows.find((x) => x.label === b); return r ? Math.round(r.in_place_rent) : 0; }) }))),
+  const all = {}; for (const r of (bd.rows || []).concat(...deals.map((d) => d.rows))) all[typeKey(r)] = r;
+  const present = Object.keys(all).sort((a, b) => all[a].beds - all[b].beds || all[a].baths - all[b].baths);
+  // Chart only the unit types every property has, so no bar is a missing value drawn as $0.
+  const chartKeys = present.filter((k) => subj[k] && deals.every((d) => d.rows.some((r) => typeKey(r) === k)));
+  const chartLabels = chartKeys.map((k) => unitType(all[k]));
+  s.addChart(pres.charts.BAR, [{ name: `${(comps.subject || {}).name || deal.name} (subject)`, labels: chartLabels, values: chartKeys.map((k) => Math.round(subj[k].in_place_rent)) }]
+    .concat(deals.map((d) => ({ name: d.name, labels: chartLabels, values: chartKeys.map((k) => Math.round(d.rows.find((x) => typeKey(x) === k).in_place_rent)) }))),
     Object.assign(chartBase(), { x: X0, y: 1.3, w: 5.6, h: 5.0, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, HUSH, ACCENT, "D5D7DA"],
       showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b",
-      showTitle: true, title: "Average in-place rent by bedroom", titleFontFace: FONT, titleFontSize: 12, titleColor: STRONG }));
+      showTitle: true, title: "Average in-place rent by unit type", titleFontFace: FONT, titleFontSize: 12, titleColor: STRONG }));
   const rows = [];
   const addProp = (name, sub, rowsBy, total, fill) => {
     rows.push({ bold: true, fill: fill || CANVAS, cells: [`${name} · rent roll ${sub}`, "", "", "", "", ""] });
-    for (const b of present) {
-      const r = rowsBy[b]; if (!r) continue;
-      rows.push({ cells: [`   ${b}`, S(int(r.units)), S(int(r.avg_sf)), SM(r.market_rent), SM(r.in_place_rent), S(pct(r.occupied_pct))] });
+    for (const k of present) {
+      const r = rowsBy[k]; if (!r) continue;
+      rows.push({ cells: [`   ${unitType(r)}`, S(int(r.units)), S(int(r.avg_sf)), SM(r.market_rent), SM(r.in_place_rent), S(pct(r.occupied_pct))] });
     }
     if (total) rows.push({ bold: true, cells: ["   Total / avg", S(int(total.units)), S(int(total.avg_sf)), SM(total.market_rent), SM(total.in_place_rent), S(pct(total.occupied_pct))] });
   };
   addProp(`${(comps.subject || {}).name || deal.name} (subject)`, dateLabel((comps.subject || {}).as_of, false), subj, bd.total, TINT);
-  for (const d of deals) { const by = {}; for (const r of d.rows) by[r.label] = r; addProp(`${d.name}, ${d.city}`, dateLabel(d.as_of), by, d.total); }
+  for (const d of deals) { const by = {}; for (const r of d.rows) by[typeKey(r)] = r; addProp(`${d.name}, ${d.city}`, dateLabel(d.as_of), by, d.total); }
   const tx = 6.5, tw = W - X0 - tx;
   table(s, ["Property / unit type", "Units", "Avg SF", "Market", "In-place", "Occupied"], rows,
     { x: tx, y: 1.3, w: tw, colW: [2.55, 0.65, 0.7, 0.8, 0.8, tw - 5.5], fontSize: 10, rowH: 0.3 });

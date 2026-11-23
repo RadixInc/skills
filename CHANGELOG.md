@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- `offering-memorandum` (new): Offering Memorandum as an editable 13-slide PowerPoint deck plus PDF, built from Radix rent roll, floor plans, operating statement and rent comps plus the client model's pro forma, cash flow and assumptions. Native tables and charts, brand profile colors, an accuracy gate, and flagged placeholders for photos, map, sales comps, market overview and contacts.
+- `offering-memorandum` (new): Offering Memorandum as an editable 13-slide PowerPoint deck plus PDF, built from Radix rent roll, floor plans, operating statement and rent comps plus the client model's pro forma, cash flow and assumptions. Native tables and charts, brand profile colors, an accuracy gate, and flagged placeholders for photos, map, sales comps, market overview and contacts. Unit mix is by bed / bath on every slide.
+- `ic-memo`: unit mix is now by bed / bath (unitMixBath).
 - `ic-memo` (new): one-page IC memo as PDF and Word, led by the client's model and drawn with Radix components: page head and summary, deal metric tiles, NOI over the hold next to the T12 actual, capitalization, IRR sensitivity, T12/T3/T1 actuals next to the Year 1 pro forma with an analyst notes column. Ten fixed pre-send checks run before export and are reported to the analyst, not printed on the memo. Includes a brand profile (`radix.brand_profile/v1`, Radix house style by default), a deterministic renderer, and an accuracy gate that blocks export when figures don't reconcile.
 - Release workflow: `<plugin>-latest` is now the ref the Claude plugin directory tracks. The workflow only moves it forward, fails if the move didn't land, and writes the result to the job summary. `docs/releasing.md` covers the directory webhook and how to check a release reached the directory.
 ## 1.0.2

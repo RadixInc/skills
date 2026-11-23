@@ -20,7 +20,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
   },
   "snapshot": {"occupancy_pct": 0, "in_place_rent": 0, "market_rent": 0, "pct_of_market": 0,
                "vacant_units": 0, "occupied_units": 0, "leases_expiring_next90": 0},
-  "unit_mix": {"rows": [{"label": "1 Bed", "units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}],
+  "unit_mix": {"rows": [{"beds": 1, "baths": 1, "units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}],
                "total": {"units": 0, "avg_sf": 0, "market_rent": 0, "in_place_rent": 0, "occupied_pct": 0}},
   "actuals": {
     "columns": [{"key": "T12", "label": "T12", "window": "Sep 2025 - Aug 2026"},
@@ -73,6 +73,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **Groups.** Every actual line gets one `group`: `potential_rent`, `loss_to_lease`, `vacancy_credit` (vacancy, concessions, non-revenue units, collection loss), `other_income` (other residential income, reimbursements, parking, storage, commercial), `controllable` (repairs, contract services, turnover, landscaping, personnel, marketing, leasing commissions, administrative, security, other), `utilities`, `taxes_insurance` (real estate and other taxes, insurance), `management`. The pro forma uses the same groups, mapped from the model's own lines.
 - **Signs.** Expenses are positive. Revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them. Debt service and capex in `hold_cash_flow` are positive amounts.
 - **Percents.** `snapshot` and `unit_mix` percents are percent numbers as the server returns them (`76.4`). Everything else is a ratio (`0.125` = 12.5%).
+- **`unit_mix`** is always by bed / bath (`groupBy: "unitMixBath"`); the renderer labels each row from `beds` and `baths` ("1 bed / 1 bath", "Studio / 1 bath").
 - **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It is kept for the trend view (not drawn on the one-pager).
 - **`deal_terms.required_equity`** is the equity the buyer funds at closing, from the model's sources and uses. It leads the deal metrics. If it's missing, the renderer uses the equity layers of the capital stack.
 - **`waterfall_option`**: `auto` (show the waterfall when the model has one; the default), `always` (show a placeholder when it doesn't) or `never`. Take it from the brand profile's `defaults.ic_memo.waterfall`.
