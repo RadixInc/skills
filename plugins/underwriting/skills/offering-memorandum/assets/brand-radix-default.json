@@ -1,0 +1,42 @@
+{
+  "schema": "radix.brand_profile/v1",
+  "profile_id": "radix-house-style",
+  "name": "Radix house style",
+  "owner": {
+    "level": "default",
+    "account_name": null
+  },
+  "logo": {
+    "data_uri": null,
+    "url": null,
+    "wordmark_text": "Radix",
+    "placement": "header_left"
+  },
+  "colors": {
+    "primary": "#144a85",
+    "accent": "#1f76d6",
+    "accent_tint": "#eff4fe"
+  },
+  "fonts": {
+    "heading": "Manrope",
+    "body": "Manrope"
+  },
+  "firm": {
+    "display_name": "Radix",
+    "contact_lines": []
+  },
+  "disclaimer": "Prepared for internal investment committee review. Actuals and the rent roll are from Radix; the pro forma, returns and capitalization are from the client's model. The summary is a draft for the analyst to edit.",
+  "defaults": {
+    "ic_memo": {
+      "format": null,
+      "variant": "one_pager"
+    },
+    "om": {
+      "format": null
+    },
+    "bov": {
+      "format": null
+    }
+  },
+  "updated_at": "2026-11-20"
+}
