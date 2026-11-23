@@ -32,9 +32,9 @@ The design is code: `scripts/build_blocks.js` draws every block the same way on 
 
 Unless the user already named the blocks they want, show the catalog from [references/block-catalog.md](references/block-catalog.md) as a short table (block, what it shows, source) and ask which they want; default to every block the deal has data for. If the user asks "what can Radix put in my OM / BOV", the catalog is the answer: stop there until they pick.
 
-Format: use `defaults.data_blocks.format` from the brand profile if set; otherwise ask PowerPoint, PNG or both (default both), and offer to save the answer.
+Format: use `defaults.data_blocks.format` from the brand profile if set; otherwise ask PowerPoint, PNG or both (default both).
 
-Brand: load the profile as the ic-memo skill does (`get_brand_profile`, a `brand.json`, or `assets/brand-radix-default.json`). Blocks take the brand's primary, accent and accent tint colors only; layout, type and neutrals are fixed. Blocks use a font every Office install has: if the brand font isn't Arial, Calibri or Cambria, they use Arial.
+Brand: use a `brand.json` the user attached (or in the project files); otherwise `assets/brand-radix-default.json`, and say in one line that the blocks use Radix colors and they can give their own primary, accent and accent tint as hex codes. When they give colors or a default format, write them into a copy of the default profile and send `brand.json` back for them to keep (see [references/brand-profile.md](references/brand-profile.md)); in a Claude Project they can add it to the project files once. Blocks take the brand's primary, accent and accent tint colors only; layout, type and neutrals are fixed. Blocks use a font every Office install has: if the brand font isn't Arial, Calibri or Cambria, they use Arial.
 
 ## Step 2: Gather the data
 

@@ -60,7 +60,22 @@ const dateLabel = (d) => {
 // ---------- brand (colors only; layout, type scale and neutrals are fixed) ----------
 const hex = (c, d) => (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c.slice(1).toUpperCase() : d);
 const colors = brand.colors || {};
-const PRIMARY = hex(colors.primary, "144A85"), ACCENT = hex(colors.accent, "1F76D6"), TINT = hex(colors.accent_tint, "EFF4FE");
+// Contrast guard: a brand color can't make figures hard to read. Primary and accent must reach 3:1 on white
+// (darkened in small steps until they do); the tint must stay light (lightened toward white until it does).
+const colorNotes = [];
+const rgb = (h) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+const toHex = (c) => c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("").toUpperCase();
+const lum = (h) => { const [r, g, b] = rgb(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const onWhite = (h) => 1.05 / (lum(h) + 0.05);
+const mix = (h, t, f) => toHex(rgb(h).map((v, i) => v + (rgb(t)[i] - v) * f));
+function guard(h, role, kind) {
+  let c = h, n = 0;
+  if (kind === "dark") while (onWhite(c) < 3 && n < 40) { c = mix(c, "000000", 0.05); n++; }
+  else while (onWhite(c) > 1.15 && n < 40) { c = mix(c, "FFFFFF", 0.1); n++; }
+  if (c !== h) colorNotes.push(`${role} #${h} adjusted to #${c} so figures stay readable.`);
+  return c;
+}
+const PRIMARY = guard(hex(colors.primary, "144A85"), "Primary", "dark"), ACCENT = guard(hex(colors.accent, "1F76D6"), "Accent", "dark"), TINT = guard(hex(colors.accent_tint, "EFF4FE"), "Accent tint", "light");
 const INK = "181D27", STRONG = "252B37", MUTED = "414651", FAINT = "717680", HUSH = "A4A7AE", RULE = "EAEAF0", CANVAS = "F5F5FA";
 // Blocks are pasted into the user's own files, so use a font every Office install has.
 const DECK_SAFE = ["Arial", "Calibri", "Cambria"];
@@ -407,8 +422,9 @@ pres.writeFile({ fileName: pptxPath }).then(async () => {
   }
   const summary = [`# Run summary: ${deal.name} Radix data blocks`, "", `Accuracy gate: **${status.replace(/_/g, " ")}**`, "", "## Blocks"]
     .concat(rendered.map((b, i) => `${i + 1}. ${b}`), skipped.length ? ["", "## Skipped (missing data)"].concat(skipped.map((s) => `- ${s.block}: needs ${s.needs}`)) : [],
+      colorNotes.length ? ["", "## Brand colors"].concat(colorNotes.map((n) => `- ${n}`)) : [],
       ["", "## Checks"], checks.map((c) => `- ${c.ok ? "PASS" : "FAIL"}: ${c.check}${!c.ok && c.detail ? ` (${c.detail})` : ""}`),
       ["", "## Files"], outputs.map((o) => `- ${o}`), pngNote ? [`- ${pngNote}`] : []).join("\n");
   fs.writeFileSync(path.join(outDir, `${stem}-run-summary.md`), summary + "\n");
-  console.log(JSON.stringify({ status, rendered, skipped, outputs, png_note: pngNote, failed }, null, 2));
+  console.log(JSON.stringify({ status, rendered, skipped, outputs, png_note: pngNote, color_notes: colorNotes, failed }, null, 2));
 });

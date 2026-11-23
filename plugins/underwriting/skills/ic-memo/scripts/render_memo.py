@@ -121,6 +121,23 @@ def mix(a, b, t):
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(ra, rb))
 
 
+COLOR_NOTES = []
+
+
+def guard_color(c, role, kind):
+    """Keep brand colors readable: primary and accent reach 3:1 on white; the tint stays light."""
+    out, n = c, 0
+    if kind == "dark":
+        while contrast(out, "#ffffff") < 3 and n < 40:
+            out, n = mix(out, "#000000", 0.05), n + 1
+    else:
+        while contrast(out, "#ffffff") > 1.15 and n < 40:
+            out, n = mix(out, "#ffffff", 0.1), n + 1
+    if out.lower() != c.lower():
+        COLOR_NOTES.append(f"{role} {c} adjusted to {out} so figures stay readable.")
+    return out
+
+
 def valid_hex(c):
     return isinstance(c, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", c) is not None
 
@@ -411,9 +428,9 @@ def noi_chart(t12, years, noi, coc, bar, w=560, h=132):
 def build_html(memo, brand, der, S):
     deal, src = memo["deal"], memo.get("sources") or {}
     colors = brand.get("colors", {})
-    primary = colors.get("primary") if valid_hex(colors.get("primary")) else "#144a85"
-    accent = colors.get("accent") if valid_hex(colors.get("accent")) else "#1f76d6"
-    tint = colors.get("accent_tint") if valid_hex(colors.get("accent_tint")) else "#eff4fe"
+    primary = guard_color(colors.get("primary") if valid_hex(colors.get("primary")) else "#144a85", "Primary", "dark")
+    accent = guard_color(colors.get("accent") if valid_hex(colors.get("accent")) else "#1f76d6", "Accent", "dark")
+    tint = guard_color(colors.get("accent_tint") if valid_hex(colors.get("accent_tint")) else "#eff4fe", "Accent tint", "light")
     font = brand.get("fonts", {}).get("body", "Manrope")
     font = font if font in APPROVED_FONTS else "Manrope"
     act, pf = memo.get("actuals") or {}, memo.get("proforma") or {}
@@ -1074,7 +1091,7 @@ def main():
         outputs.append(str(out / f"{stem}.docx"))
     (out / f"{stem}-run-summary.md").write_text(run_summary(memo, status, checks, placeholders, der["flags"], outputs))
     print(json.dumps({"status": status, "outputs": outputs, "placeholders": placeholders,
-                      "checks_to_look_at": [f"{f['name']}: {f['observed']}" for f in der["flags"] if f["fired"]],
+                      "color_notes": COLOR_NOTES, "checks_to_look_at": [f"{f['name']}: {f['observed']}" for f in der["flags"] if f["fired"]],
                       "failed": [c for c in checks if not c["ok"]]}, indent=2))
 
 

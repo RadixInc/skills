@@ -1,6 +1,6 @@
 # Brand profile (`radix.brand_profile/v1`)
 
-One JSON document per account (optionally per user) that every Radix deal document reads: IC memo, OM, BOV and template push. It is plain JSON so it works the same in any agent and in the Radix app.
+One JSON document per account (optionally per user) that every Radix deal document reads: IC memo, OM, BOV and template push. It is a plain JSON file the user keeps, so the same file works in any agent.
 
 ## Fields
 
@@ -34,14 +34,21 @@ One JSON document per account (optionally per user) that every Radix deal docume
 
 When asking for brand colors, list them by role so the user knows where each appears:
 
-1. **Primary**: header band, section headings
-2. **Accent**: heading markers and rules
-3. **Accent tint**: tiles, highlighted rows, grid headers (a very light version of the accent)
+| Role | IC memo | Data blocks |
+|---|---|---|
+| **Primary** | Wordmark, NOI bars, base-case cell | Main chart bars, snapshot figures, the subject property in comparison charts |
+| **Accent** | Heading markers and rules | Second chart series (in-place rent, revenue) |
+| **Accent tint** | Pro forma column, highlighted rows | NOI rows, the subject property's rows in the comps table (keep it very light) |
 
-The renderer checks contrast: if white text on the primary color is under 4.5:1, it uses dark text instead.
+The users can give colors as hex codes in chat; the agent writes them into `brand.json`.
+
+The renderers check contrast so a brand can't make figures hard to read: a primary or accent lighter than 3:1 against white is darkened until it passes, and an accent tint darker than a light tint is lightened. The run summary says when a color was adjusted.
 
 ## Where it's stored
 
-1. **Radix MCP** (`get_brand_profile` / `save_brand_profile`), when available. This is the source of truth, so a profile saved from one agent shows up in every agent and in the app.
-2. **A `brand.json` file** the user keeps and attaches, when the MCP doesn't offer the tools yet.
-3. **`assets/brand-radix-default.json`**, the Radix house style, when neither exists.
+The skills ship on their own, with nothing stored in Radix:
+
+1. **A `brand.json` the user attaches**, or colors they give in chat. When the user gives colors or a default format, the agent writes `brand.json` (starting from `assets/brand-radix-default.json`) and sends it back so they can keep it. In a Claude Project, adding `brand.json` to the project files makes every chat in the project use it.
+2. **`assets/brand-radix-default.json`**, the Radix house style, when the user has none.
+
+Storing the profile in Radix so it follows the account (`get_brand_profile` / `save_brand_profile` on the MCP) is planned, not built. Don't call those tools unless the MCP lists them.

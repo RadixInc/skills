@@ -35,11 +35,11 @@ The layout is code: `scripts/render_memo.py` draws every block the same way on e
 
 ## Step 1: Brand profile and output format
 
-The brand profile is plain JSON (`radix.brand_profile/v1`, see [references/brand-profile.md](references/brand-profile.md)) so the same profile works in any agent and in the Radix app.
+The brand profile is plain JSON (`radix.brand_profile/v1`, see [references/brand-profile.md](references/brand-profile.md)) so the same file works in any agent.
 
-1. Load it: `get_brand_profile` from the MCP if offered; else a `brand.json` the user attached; else `assets/brand-radix-default.json` (Radix house style).
+1. Load it: a `brand.json` the user attached (or in the project files); else `assets/brand-radix-default.json` (Radix house style).
 2. First run on the default: say the memo uses the Radix house style and list what they can set: logo, primary color (wordmark, NOI bars, base-case cell), accent color, accent tint (pro forma column and base-case row), firm name, disclaimer. Don't block on it.
-3. Format: use `defaults.ic_memo.format` if set; otherwise ask PDF, Word or both, and offer to save the answer as the default (`save_brand_profile`, or an updated `brand.json` for the user to keep).
+3. Format: use `defaults.ic_memo.format` if set; otherwise ask PDF, Word or both, and offer to save the answer as their default in an updated `brand.json` you send back for them to keep.
 
 ## Step 2: The deal
 
