@@ -483,7 +483,8 @@ def build_html(memo, brand, der, S):
         tile("Levered IRR", S.add(fmt_ratio(lev.get("irr"))), irr_cmp),
         tile("Equity multiple", S.add(fmt_mult(lev.get("moic"))), mult_cmp),
         tile("Going-in cap", S.add(fmt_ratio(terms.get("going_in_cap_model"), 2)),
-             f"Pro forma NOI · {S.add(fmt_ratio(t12_cap, 2))} on T12" if is_num(t12_cap) else "Pro forma NOI"),
+             (f"Pro forma NOI · exit {S.add(fmt_ratio(ex.get('cap'), 2))} in Y{terms.get('hold_years')}" if dscr and is_num(ex.get("cap"))
+              else f"Pro forma NOI · {S.add(fmt_ratio(t12_cap, 2))} on T12" if is_num(t12_cap) else "Pro forma NOI")),
         tile("Min DSCR", S.add(fmt_mult(min(dscr))), "Lowest year of the hold") if dscr else
         tile("Exit cap", S.add(fmt_ratio(ex.get("cap"), 2)),
              f"{S.add(fmt_compact(ex.get('gross_proceeds')))} sale in Y{terms.get('hold_years')}" if is_num(ex.get("gross_proceeds")) else ""),
@@ -765,7 +766,7 @@ p {{ margin:0; }}
     <div class="ph__aside">{brand_mark}<div class="ph__date">{esc(' · '.join(marks))}</div><div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
   </div>
   {summary_html}
-  {'<div class="sample">Layout preview: the equity waterfall uses illustrative figures, not the client model.</div>' if memo.get('sample') else ''}
+  {f'<div class="sample">{esc(memo.get("sample_note") or "Layout preview: some figures are illustrative, not from the client model.")}</div>' if memo.get('sample') else ''}
 </header>
 <div class="grid g-a">
   <section class="card"><div class="card__head"><span class="card__title">Deal metrics</span></div>{metrics_html}</section>
@@ -926,7 +927,7 @@ def write_docx(memo, brand, der, docx_path):
               [[x["label"], fmt_money(x.get("equity")), fmt_money(x.get("distributions")), fmt_money(x.get("profit")),
                 fmt_ratio(x.get("irr")), fmt_mult(x.get("moic")), fmt_money(x.get("promote")) if is_num(x.get("promote")) and x.get("promote") else "-"] for x in wf["partners"]])
     if memo.get("sample"):
-        small("Layout preview: the equity waterfall uses illustrative figures, not the client model.", "#b54708")
+        small(memo.get("sample_note") or "Layout preview: some figures are illustrative, not from the client model.", "#b54708")
 
     sens = memo.get("sensitivity") or {}
     if sens.get("values"):
