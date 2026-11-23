@@ -31,10 +31,7 @@
       "format": null,
       "variant": "one_pager"
     },
-    "om": {
-      "format": null
-    },
-    "bov": {
+    "data_blocks": {
       "format": null
     }
   },
