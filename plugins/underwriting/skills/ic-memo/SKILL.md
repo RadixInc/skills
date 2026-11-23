@@ -5,7 +5,7 @@ description: Draft a branded one-page Investment Committee (IC) memo for a Radix
 
 # IC Memo
 
-An IC memo answers one question for the committee: should we bid, and at what price? The one-pager is led by the client's model and drawn with Radix's own components (page head, metric tiles, report tables, status pills), so it reads like a Radix report:
+An IC memo answers one question for the committee: should we bid, and at what price? The one-pager is led by the client's model and drawn with Radix's own components (page head, metric tiles, report tables), so it reads like a Radix report:
 
 1. **Page head**: the property, memo type, structure and hold as plain text and a two-sentence summary.
 2. **Deal metrics and NOI over the hold**: levered IRR, multiple, cash-on-cash, price, going-in and exit cap; NOI by year from the model next to the T12 actual.
