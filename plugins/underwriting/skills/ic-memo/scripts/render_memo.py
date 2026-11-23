@@ -422,7 +422,7 @@ def build_html(memo, brand, der, S):
     com = memo.get("commentary") or {}
     summary_html = ""
     if com.get("text"):
-        pill = '<span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">Draft</span>' if com.get("status", "draft") == "draft" else ""
+        pill = ""
         summary_html = f'<div class="ph__summary">{pill}<p>{esc(com["text"])}</p></div>'
 
     # ----- deal metrics (rx-metric-tile grid)
@@ -807,7 +807,7 @@ def write_docx(memo, brand, der, docx_path):
 
     com = memo.get("commentary") or {}
     if com.get("text"):
-        heading("Summary"); doc.add_paragraph(com["text"]); small("Draft for analyst review", "#b54708")
+        heading("Summary"); doc.add_paragraph(com["text"])
 
     if ret:
         heading("Returns")
