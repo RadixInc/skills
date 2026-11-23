@@ -22,6 +22,7 @@ One JSON document per account (optionally per user) that every Radix deal docume
 | `disclaimer` | string | Client-owned text, printed in the footer verbatim |
 | `defaults.<doc>.format` | `pdf` \| `docx` \| `pdf+docx` \| `pptx` \| null | Null means ask every run |
 | `defaults.ic_memo.variant` | `one_pager` \| `full` | |
+| `defaults.ic_memo.waterfall` | `auto` \| `always` \| `never` | Equity waterfall on the IC memo. `auto` shows it when the model has one |
 | `updated_at` | date | |
 
 ## What the client can and can't change

@@ -39,7 +39,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
     "effective_rent": 0, "market_rent": 0, "physical_occupancy": 0.75,
     "notes": {"potential_rent": "Analyst's note", "other_income": null}
   },
-  "deal_terms": {"price": 0, "price_source": "client_model", "all_in_cost": 0,
+  "deal_terms": {"price": 0, "price_source": "client_model", "required_equity": 0, "all_in_cost": 0,
                  "going_in_cap_model": 0.0946, "hold_years": 7, "analysis_start": "YYYY-MM-DD"},
   "returns": {
     "unlevered": {"irr": 0.125, "moic": 1.96, "profit": 0},
@@ -50,6 +50,13 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
   "capital_stack": {"layers": [{"label": "Senior debt", "amount": 0, "kind": "debt"},
                                {"label": "Equity", "amount": 0, "kind": "equity"}],
                     "terms": ["5.39% fixed, 60-month IO, 30-year amortization"]},
+  "waterfall_option": "auto",
+  "waterfall": {
+    "source": "client_model", "structure": "90% LP / 10% GP · 8% pref",
+    "tiers": [{"label": "Return of capital + pref", "hurdle": "to 8.0% IRR", "lp": 0.9, "gp": 0.1}],
+    "partners": [{"label": "LP", "role": "lp", "equity": 0, "distributions": 0, "profit": 0, "irr": 0.116, "moic": 1.91},
+                 {"label": "GP", "role": "gp", "equity": 0, "distributions": 0, "profit": 0, "irr": 0.214, "moic": 2.44, "promote": 0}]
+  },
   "sources_uses": {"uses": [{"label": "Purchase price", "amount": 0}],
                    "sources": [{"label": "Equity", "amount": 0}]},
   "sensitivity": {"source": "client_model", "metric": "Levered IRR", "title": "",
@@ -67,6 +74,9 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **Signs.** Expenses are positive. Revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them. Debt service and capex in `hold_cash_flow` are positive amounts.
 - **Percents.** `snapshot` and `unit_mix` percents are percent numbers as the server returns them (`76.4`). Everything else is a ratio (`0.125` = 12.5%).
 - **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It is kept for the trend view (not drawn on the one-pager).
+- **`deal_terms.required_equity`** is the equity the buyer funds at closing, from the model's sources and uses. It leads the deal metrics. If it's missing, the renderer uses the equity layers of the capital stack.
+- **`waterfall_option`**: `auto` (show the waterfall when the model has one; the default), `always` (show a placeholder when it doesn't) or `never`. Take it from the brand profile's `defaults.ic_memo.waterfall`.
+- **`waterfall`**: tiers with LP and GP splits, and returns by partner (`role` is `lp` or `gp`). Leave it `null` when the model has no waterfall. Every figure comes from the model's waterfall; never compute a split or promote.
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
 - **`commentary`** is the summary in the page head: 2 or 3 sentences, facts only, every figure as the page shows it.
 - **`proforma.notes`** are the analyst's notes by group key (any of the eight groups, plus `egr`, `opex`, `noi`, `rent`, `occupancy`, `cap_rate`). They print in a Notes column on the operating statement, which only appears when a note exists. Never write them yourself. Pre-send checks are computed and never printed, see [pre-send-checks.md](pre-send-checks.md).
@@ -80,6 +90,8 @@ The renderer refuses to export (exit code 2) when:
 - pro forma groups don't sum to its EGR and OpEx, its NOI ≠ EGR - OpEx, or its NOI ≠ Year 1 NOI in the hold cash flow
 - hold-period net cash flow ≠ NOI - debt service - capex in any year
 - sources ≠ uses, or the capital stack ≠ total sources
+- required equity ≠ the equity in the capital stack
+- waterfall partner equity ≠ required equity, a partner's profit ≠ distributions - equity, partner profits ≠ levered deal profit, or a tier's splits don't add to 100%
 - the unit mix doesn't add to the deal's units, or snapshot occupancy ≠ the rent roll total
 - the rent roll date, the actual column windows, or (when any model block is used) the model file name is missing
 - the summary or a line note cites a figure that isn't printed on the page (years and bare whole numbers under 100 are ignored)

@@ -8,8 +8,8 @@ description: Draft a branded one-page Investment Committee (IC) memo for a Radix
 An IC memo answers one question for the committee: should we bid, and at what price? The one-pager is led by the client's model and drawn with Radix's own components (page head, metric tiles, report tables), so it reads like a Radix report:
 
 1. **Page head**: the property, memo type, structure and hold as plain text and a two-sentence summary.
-2. **Deal metrics and NOI over the hold**: levered IRR, multiple, cash-on-cash, price, going-in and exit cap; NOI by year from the model next to the T12 actual.
-3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted.
+2. **Deal metrics and NOI over the hold**: required equity first (the cash to close), then levered IRR, multiple, going-in and exit cap; NOI by year from the model next to the T12 actual.
+3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted. Optionally the **equity waterfall**: LP and GP splits by tier and returns by partner, per client.
 4. **Operating statement**: T12, T3 and T1 actuals from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given.
 
 Risks and mitigants are the analyst's judgment and belong in the full IC memo, not the screening one-pager. Before the memo goes out, the renderer runs fixed pre-send checks (see [references/pre-send-checks.md](references/pre-send-checks.md)); you report them to the analyst, and they never print on the memo.
@@ -65,7 +65,9 @@ No mapped rent roll or actuals statement → say so and offer to continue with w
 
 Ask once for the model if the user hasn't given it. Read it per [references/client-model.md](references/client-model.md), which also maps the Radix underwriting model export cell by cell. Record where each value came from in `sources.client_model.cells`. If a value is ambiguous (scenarios, several IRRs), ask which to use.
 
-Fill: `proforma` (Year 1, mapped to the same groups as the actuals, plus effective rent and occupancy), `deal_terms`, `returns`, `capital_stack`, `sources_uses`, `sensitivity` (mark the base case), `hold_cash_flow`.
+Fill: `proforma` (Year 1, mapped to the same groups as the actuals, plus effective rent and occupancy), `deal_terms` (including `required_equity`, the cash the buyer funds at closing, which leads the page), `returns`, `capital_stack`, `sources_uses`, `sensitivity` (mark the base case), `hold_cash_flow`, and `waterfall` when the model has one.
+
+**Waterfall:** some clients want LP and GP returns on every memo, some never. Use `defaults.ic_memo.waterfall` from the brand profile (`auto`, `always`, `never`) as `waterfall_option`. If it isn't set and the model has a waterfall, ask once whether to include it and offer to save the answer as their default.
 
 No model → leave those blocks `null`. The memo still renders the actuals, with placeholders for the rest. A price with no model can come from the deal's `expectedPurchasePrice` in Radix (`price_source: "radix"`) or from the user (`"user"`).
 

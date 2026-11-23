@@ -48,3 +48,8 @@ The Radix underwriting model export (`<deal number> - <deal name>-<account id>-<
 When every loan is zero, say "all cash" in the financing block and note that leveraged and unleveraged returns are the same. Leveraged sensitivity grids are all zeros in that case; use the unleveraged grid.
 
 Group mapping for `Property CF` lines: Potential Market Rent and Renovation Premium → `potential_rent`; Loss to Lease → `loss_to_lease`; Vacancy, Renovation Downtime, Concessions, Non-Revenue Units, Collection Loss → `vacancy_credit`; Other Income → `other_income`; Utilities → `utilities`; Insurance and Real Estate Taxes → `taxes_insurance`; Property Management Fee → `management`; every other expense line → `controllable`. Expenses are negative in the sheet; make them positive.
+
+## Required equity and the waterfall
+
+- **Required equity**: `Sources & Uses` "Equity" under sources at closing (in the Radix export, `Sources & Uses!C9`). This is the cash the buyer puts in, including closing costs; it is not the purchase price.
+- **Waterfall**: the Radix export keeps a `Waterfall` tab that is hidden when no partnership is set up. If it's hidden and empty, the deal has no waterfall: leave `waterfall` as `null`. When it's set up, read the tiers (hurdle, LP and GP split) and, for each partner, equity, total distributions, profit, IRR, multiple and the GP's promote. Other models usually have a "Waterfall" or "Partnership" tab with the same items.

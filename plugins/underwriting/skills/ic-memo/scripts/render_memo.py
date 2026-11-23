@@ -156,6 +156,8 @@ def derive(memo):
         a, p = d["groups"][g].get("T12"), (pf.get("groups") or {}).get(g)
         d["pf_delta"][g] = (p - a) / abs(a) if is_num(a) and is_num(p) and a else None
     su = memo.get("sources_uses") or {}
+    eq_layers = [l["amount"] for l in (memo.get("capital_stack") or {}).get("layers", []) if l.get("kind") == "equity" and is_num(l.get("amount"))]
+    d["required_equity"] = terms.get("required_equity") if is_num(terms.get("required_equity")) else (sum(eq_layers) if eq_layers else None)
     d["uses_total"] = sum(u["amount"] for u in su.get("uses", []) if is_num(u.get("amount"))) if su.get("uses") else None
     d["sources_total"] = sum(s["amount"] for s in su.get("sources", []) if is_num(s.get("amount"))) if su.get("sources") else None
     # Actual lines whose T3 annualized differs from T12 by 15% or more (same sign, in magnitude).
@@ -297,6 +299,25 @@ def run_gate(memo, der, shown):
     if cs.get("layers") and is_num(der.get("sources_total")):
         tot = sum(l["amount"] for l in cs["layers"])
         check("Capital stack equals total sources", abs(tot - der["sources_total"]) <= TOL, f"{tot:,.2f} vs {der['sources_total']:,.2f}")
+    req = der.get("required_equity")
+    eq_layers = [l["amount"] for l in cs.get("layers", []) if l.get("kind") == "equity"]
+    if is_num(req) and eq_layers:
+        check("Required equity equals the equity in the capital stack", abs(req - sum(eq_layers)) <= TOL, f"{req:,.2f} vs {sum(eq_layers):,.2f}")
+    wf = memo.get("waterfall") or {}
+    if wf.get("partners"):
+        pe = sum(x.get("equity") or 0 for x in wf["partners"])
+        if is_num(req):
+            check("Waterfall partner equity adds to required equity", abs(pe - req) <= TOL, f"{pe:,.2f} vs {req:,.2f}")
+        for x in wf["partners"]:
+            if all(is_num(x.get(k)) for k in ("equity", "distributions", "profit")):
+                check(f"Waterfall {x['label']}: profit = distributions - equity", abs(x["distributions"] - x["equity"] - x["profit"]) <= TOL)
+        lp_ = (memo.get("returns") or {}).get("levered") or {}
+        if is_num(lp_.get("profit")):
+            pp = sum(x.get("profit") or 0 for x in wf["partners"])
+            check("Waterfall profit adds to levered deal profit", abs(pp - lp_["profit"]) <= TOL, f"{pp:,.2f} vs {lp_['profit']:,.2f}")
+        for t in wf.get("tiers", []):
+            if is_num(t.get("lp")) and is_num(t.get("gp")):
+                check(f"Waterfall {t['label']}: splits add to 100%", abs(t["lp"] + t["gp"] - 1) < 1e-6)
     um = memo.get("unit_mix") or {}
     if um.get("rows"):
         ru = sum(r.get("units") or 0 for r in um["rows"])
@@ -434,11 +455,33 @@ def build_html(memo, brand, der, S):
     S.money(terms.get("price")); S.money(der["price_per_unit"]); S.money(lev.get("profit")); S.money(ex.get("gross_proceeds"))
     dscr = [x for x in (hcf.get("dscr") or []) if is_num(x)]
     t12_cap = der["cap"].get("T12")
+    req = der.get("required_equity")
+    debt = sum(l["amount"] for l in cs.get("layers", []) if l.get("kind") == "debt" and is_num(l.get("amount")))
+    wf = memo.get("waterfall") or {}
+    lp = next((x for x in wf.get("partners", []) if x.get("role") == "lp"), None)
+    hero_bits = []
+    if is_num(terms.get("price")):
+        hero_bits.append(f"Purchase price {S.add(fmt_compact(terms['price']))} ({S.money(der['price_per_unit'])} per unit)")
+    if debt:
+        hero_bits.append(f"loan {S.add(fmt_compact(debt))}")
+        S.money(debt)
+    elif all_cash:
+        hero_bits.append("all cash")
+    if is_num(req) and is_num(units) and units:
+        hero_bits.append(f"{S.money(req / units)} per unit")
+    S.money(req)
+    hero = (f'<div class="rx-metric-tile rx-metric-tile--hero"><p class="rx-metric-tile__label">Required equity</p>'
+            f'<div class="rx-metric-tile__row"><p class="rx-metric-tile__value">{esc(S.add(fmt_compact(req)))}</p></div>'
+            f'<p class="rx-metric-tile__comparison">{esc(" · ".join(hero_bits))}</p></div>') if is_num(req) else ""
+    irr_cmp = f"Unlevered {S.add(fmt_ratio(unl.get('irr')))}" if unl else ""
+    if lp and is_num(lp.get("irr")):
+        irr_cmp = f"LP net {S.add(fmt_ratio(lp['irr']))} · " + irr_cmp
+    mult_cmp = " · ".join(x for x in (f"Profit {S.add(fmt_compact(lev.get('profit')))}" if is_num(lev.get("profit")) else "",
+                                      f"avg CoC {S.add(fmt_ratio(lev.get('avg_coc')))}" if is_num(lev.get("avg_coc")) else "") if x)
     tiles = [
-        tile("Levered IRR", S.add(fmt_ratio(lev.get("irr"))), f"Unlevered {S.add(fmt_ratio(unl.get('irr')))}" if unl else ""),
-        tile("Equity multiple", S.add(fmt_mult(lev.get("moic"))), f"Profit {S.add(fmt_compact(lev.get('profit')))}" if is_num(lev.get("profit")) else ""),
-        tile("Avg cash-on-cash", S.add(fmt_ratio(lev.get("avg_coc"))), f"Years 1 to {terms['hold_years']}" if terms.get("hold_years") else ""),
-        tile("Purchase price", S.add(fmt_compact(terms.get("price"))), f"{S.money(der['price_per_unit'])} per unit" if is_num(der["price_per_unit"]) else ""),
+        hero,
+        tile("Levered IRR", S.add(fmt_ratio(lev.get("irr"))), irr_cmp),
+        tile("Equity multiple", S.add(fmt_mult(lev.get("moic"))), mult_cmp),
         tile("Going-in cap", S.add(fmt_ratio(terms.get("going_in_cap_model"), 2)),
              f"Pro forma NOI · {S.add(fmt_ratio(t12_cap, 2))} on T12" if is_num(t12_cap) else "Pro forma NOI"),
         tile("Min DSCR", S.add(fmt_mult(min(dscr))), "Lowest year of the hold") if dscr else
@@ -527,6 +570,41 @@ def build_html(memo, brand, der, S):
                      f'<p class="rx-chart-note">{esc(sens.get("title", ""))}. Base case in bold.</p>')
     else:
         sens_html = ph("IRR by exit cap rate and hold period")
+
+    # ----- equity waterfall (optional)
+    wf_opt = memo.get("waterfall_option", "auto")  # auto: show when the model has one; always; never
+    wf_html = ""
+    if wf_opt == "always" and not wf.get("partners"):
+        wf_html = f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span></div>{ph("LP and GP splits by tier, and returns by partner")}</section></div>'
+    if wf_opt != "never" and wf.get("partners"):
+        tier_rows = "".join(
+            f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(t["label"])}</th><td class="rx-rtbl__td">{esc(t.get("hurdle", ""))}</td>'
+            f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(t.get("lp"), 0))}</td><td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(t.get("gp"), 0))}</td></tr>'
+            for t in wf.get("tiers", []))
+        tiers_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:36%"><col><col style="width:13%"><col style="width:13%"></colgroup>'
+                      f'<thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">Tier</th><th class="rx-rtbl__th">Hurdle</th><th class="rx-rtbl__th rx-rtbl__th--num">LP</th>'
+                      f'<th class="rx-rtbl__th rx-rtbl__th--num">GP</th></tr></thead><tbody>{tier_rows}</tbody></table></div>')
+        def prow(x, cls=""):
+            for k in ("equity", "distributions", "profit", "promote"):
+                S.money(x.get(k))
+            return (f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(x["label"])}</th>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_compact(x.get("equity")))}</td>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_compact(x.get("distributions")))}</td>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_compact(x.get("profit")))}</td>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(x.get("irr")))}</td>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_mult(x.get("moic")))}</td>'
+                    f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_compact(x.get("promote"))) if is_num(x.get("promote")) and x.get("promote") else "-"}</td></tr>')
+        parts = wf["partners"]
+        tot = {"label": "Total", "equity": sum(x.get("equity") or 0 for x in parts), "distributions": sum(x.get("distributions") or 0 for x in parts),
+               "profit": sum(x.get("profit") or 0 for x in parts), "irr": lev.get("irr"), "moic": lev.get("moic"), "promote": None}
+        partners_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:22%"><col><col><col><col><col><col></colgroup>'
+                         f'<thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">Partner</th><th class="rx-rtbl__th rx-rtbl__th--num">Equity</th>'
+                         f'<th class="rx-rtbl__th rx-rtbl__th--num">Distributions</th><th class="rx-rtbl__th rx-rtbl__th--num">Profit</th>'
+                         f'<th class="rx-rtbl__th rx-rtbl__th--num">IRR</th><th class="rx-rtbl__th rx-rtbl__th--num">Multiple</th>'
+                         f'<th class="rx-rtbl__th rx-rtbl__th--num">Promote</th></tr></thead><tbody>'
+                         + "".join(prow(x) for x in parts) + prow(tot, " rx-rtbl__tr--total rx-rtbl__tr--total-first") + "</tbody></table></div>")
+        wf_html = (f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span>'
+                   f'<span class="card__meta">{esc(wf.get("structure", ""))}</span></div><div class="wf">{tiers_html}{partners_html}</div></section></div>')
 
     # ----- operating statement (report table; pro forma is the subject column)
     cols = act.get("columns", [])
@@ -629,7 +707,12 @@ p {{ margin:0; }}
 .g-a {{ grid-template-columns: 1fr 1.32fr; }}
 .g-b {{ grid-template-columns: 1fr 1fr; }}
 .rx-rtbl td.rx-rtbl__td--note {{ white-space:normal; color:#414651; font-size:6.3pt; line-height:1.3; padding:2px 6px; }}
+.sample {{ margin-top:8px; padding:5px 9px; border:1px solid #fedf89; background:#fffaeb; color:#b54708; border-radius:8px; font-weight:600; }}
+.wf {{ display:grid; grid-template-columns: 1fr 1.6fr; gap:10px; align-items:start; }}
 .mt-grid {{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }}
+.rx-metric-tile--hero {{ grid-column:1 / -1; background:{tint}; border-color:{mix(tint, primary, 0.18)}; }}
+.rx-metric-tile--hero .rx-metric-tile__value {{ font-size:18pt; color:{primary}; }}
+.rx-metric-tile--hero .rx-metric-tile__comparison {{ color:#414651; white-space:normal; }}
 .rx-metric-tile {{ display:flex; flex-direction:column; gap:1px; padding:8px 10px; border:1px solid #eaeaf0; border-radius:8px; background:#fff; min-width:0; }}
 .rx-metric-tile__label {{ font-size:7pt; font-weight:500; color:#414651; }}
 .rx-metric-tile__row {{ display:flex; align-items:baseline; gap:2px; }}
@@ -682,6 +765,7 @@ p {{ margin:0; }}
     <div class="ph__aside">{brand_mark}<div class="ph__date">{esc(' · '.join(marks))}</div><div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
   </div>
   {summary_html}
+  {'<div class="sample">Layout preview: the equity waterfall uses illustrative figures, not the client model.</div>' if memo.get('sample') else ''}
 </header>
 <div class="grid g-a">
   <section class="card"><div class="card__head"><span class="card__title">Deal metrics</span></div>{metrics_html}</section>
@@ -691,6 +775,7 @@ p {{ margin:0; }}
   <section class="card"><div class="card__head"><span class="card__title">Capitalization</span></div>{cap_html}</section>
   <section class="card"><div class="card__head"><span class="card__title">{esc(sens.get('metric', 'IRR'))} sensitivity</span><span class="card__meta">{esc(sens.get('col_label', ''))} across · {esc(sens.get('row_label', ''))} down</span></div>{sens_html}</section>
 </div>
+{wf_html}
 <div class="grid">
   <section class="card"><div class="card__head"><span class="card__title">Operating statement</span><span class="card__meta">Actuals from Radix · pro forma from the model</span></div>{ops_html}</section>
 </div>
@@ -814,6 +899,8 @@ def write_docx(memo, brand, der, docx_path):
         ex = ret.get("exit") or {}
         small(f"Exit cap {fmt_ratio(ex.get('cap'), 2)} · gross sale proceeds {fmt_money(ex.get('gross_proceeds'))} · "
               f"going-in cap on pro forma {fmt_ratio(terms.get('going_in_cap_model'), 2)}")
+    if is_num(der.get("required_equity")):
+        p = doc.add_paragraph(); r = p.add_run(f"Required equity {fmt_money(der['required_equity'])}"); r.bold = True; r.font.size = Pt(11)
     if is_num(terms.get("price")):
         small(f"Purchase price {fmt_money(terms['price'])} ({fmt_money(der['price_per_unit'])} per unit). "
               f"Cap rate on T12 NOI {fmt_ratio(der['cap'].get('T12'), 2)} (derived).", NEUTRAL["ink"])
@@ -827,6 +914,19 @@ def write_docx(memo, brand, der, docx_path):
               + [["Total", fmt_money(der["sources_total"]), "100%"]], bold=(len(su["sources"]),))
         for t in cs.get("terms", []):
             small(t)
+
+    wf = memo.get("waterfall") or {}
+    if wf.get("partners") and memo.get("waterfall_option", "auto") != "never":
+        heading("Equity waterfall")
+        if wf.get("structure"):
+            small(wf["structure"])
+        if wf.get("tiers"):
+            table(["Tier", "Hurdle", "LP", "GP"], [[t["label"], t.get("hurdle", ""), fmt_ratio(t.get("lp"), 0), fmt_ratio(t.get("gp"), 0)] for t in wf["tiers"]])
+        table(["Partner", "Equity", "Distributions", "Profit", "IRR", "Multiple", "Promote"],
+              [[x["label"], fmt_money(x.get("equity")), fmt_money(x.get("distributions")), fmt_money(x.get("profit")),
+                fmt_ratio(x.get("irr")), fmt_mult(x.get("moic")), fmt_money(x.get("promote")) if is_num(x.get("promote")) and x.get("promote") else "-"] for x in wf["partners"]])
+    if memo.get("sample"):
+        small("Layout preview: the equity waterfall uses illustrative figures, not the client model.", "#b54708")
 
     sens = memo.get("sensitivity") or {}
     if sens.get("values"):
