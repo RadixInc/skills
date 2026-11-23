@@ -33,7 +33,7 @@ APPROVED_FONTS = {"Manrope"}
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 REV_GROUPS = [("potential_rent", "Potential rent"), ("loss_to_lease", "Loss to lease"),
-              ("vacancy_credit", "Vacancy, concessions, credit loss"), ("other_income", "Other income")]
+              ("vacancy_credit", "Vacancy and credit loss"), ("other_income", "Other income")]
 EXP_GROUPS = [("controllable", "Controllable expenses"), ("utilities", "Utilities"),
               ("taxes_insurance", "Taxes and insurance"), ("management", "Management fee")]
 
@@ -172,7 +172,7 @@ def derive(memo):
     return d
 
 
-# ---------- risk flags (fixed rules, documented in references/risk-rules.md) ----------
+# ---------- underwriting checks (fixed rules, documented in references/risk-rules.md) ----------
 
 def risk_flags(memo, d):
     act, pf, snap = memo.get("actuals") or {}, memo.get("proforma") or {}, memo.get("snapshot") or {}
@@ -348,30 +348,34 @@ def font_face_css():
 
 
 def ph(label, source="client model"):
-    return f'<div class="ph"><b>Needs {esc(source)}</b><span>{esc(label)}</span></div>'
+    return f'<div class="rx-alert"><b>Needs {esc(source)}</b><span>{esc(label)}</span></div>'
 
 
-def sparkline(actual, proforma, color_a, color_p, w=150, h=26):
-    """Monthly actuals (annualized) in grey, then pro forma years in the accent, on one scale."""
-    pts = [v for v in actual + proforma if is_num(v)]
-    if len(pts) < 2 or not actual:
+def noi_chart(t12, years, noi, coc, bar, w=560, h=132):
+    """NOI by year from the model, with the T12 actual as the first, grey bar."""
+    cats = (["T12"] if is_num(t12) else []) + list(years)
+    vals = ([t12] if is_num(t12) else []) + list(noi)
+    if not vals or not all(is_num(v) for v in vals):
         return ""
-    lo, hi = min(pts), max(pts)
-    span = (hi - lo) or 1
-    gap = 8
-    wa = (w - gap) * 0.55 if proforma else w
-    wp = (w - gap) - wa if proforma else 0
-    y = lambda v: h - 3 - (v - lo) / span * (h - 6)
-    xa = [wa * i / max(len(actual) - 1, 1) for i in range(len(actual))]
-    xp = [wa + gap + wp * i / max(len(proforma) - 1, 1) for i in range(len(proforma))]
-    pa = " ".join(f"{x:.1f},{y(v):.1f}" for x, v in zip(xa, actual))
-    out = f'<svg class="spark" viewBox="0 0 {w} {h}" preserveAspectRatio="none" width="100%" height="{h}"><polyline points="{pa}" fill="none" stroke="{color_a}" stroke-width="1.3"/>'
-    if proforma:
-        pp = " ".join(f"{x:.1f},{y(v):.1f}" for x, v in zip(xp, proforma))
-        out += (f'<line x1="{xa[-1]:.1f}" y1="{y(actual[-1]):.1f}" x2="{xp[0]:.1f}" y2="{y(proforma[0]):.1f}" stroke="{color_p}" stroke-width="1" stroke-dasharray="2 2"/>'
-                f'<polyline points="{pp}" fill="none" stroke="{color_p}" stroke-width="1.5"/>'
-                + "".join(f'<circle cx="{x:.1f}" cy="{y(v):.1f}" r="1.5" fill="{color_p}"/>' for x, v in zip(xp, proforma)))
-    return out + "</svg>"
+    top, bottom, left, right = 16, 30, 4, 4
+    vmax = max(vals) * 1.08 or 1
+    slot = (w - left - right) / len(vals)
+    bw = slot * 0.54
+    base_y = h - bottom
+    out = [f'<svg class="chart" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="NOI by year">',
+           f'<line x1="{left}" x2="{w - right}" y1="{base_y}" y2="{base_y}" stroke="{NEUTRAL["rule_strong"]}" stroke-width="1"/>']
+    for i, (c, v) in enumerate(zip(cats, vals)):
+        x = left + slot * i + (slot - bw) / 2
+        bh = (v / vmax) * (base_y - top)
+        actual = is_num(t12) and i == 0
+        fill = NEUTRAL["hush"] if actual else bar
+        out.append(f'<rect x="{x:.1f}" y="{base_y - bh:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="2" fill="{fill}"/>')
+        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y - bh - 4:.1f}" text-anchor="middle" class="cv">{esc(fmt_compact(v))}</text>')
+        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y + 11:.1f}" text-anchor="middle" class="cx">{esc(c)}</text>')
+        sub = "actual" if actual else (fmt_ratio(coc[i - (1 if is_num(t12) else 0)]) + " CoC" if coc and is_num(coc[i - (1 if is_num(t12) else 0)]) else "")
+        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y + 22:.1f}" text-anchor="middle" class="cs">{esc(sub)}</text>')
+    out.append("</svg>")
+    return "".join(out)
 
 
 def build_html(memo, brand, der, S):
@@ -385,376 +389,339 @@ def build_html(memo, brand, der, S):
     act, pf = memo.get("actuals") or {}, memo.get("proforma") or {}
     terms, ret = memo.get("deal_terms") or {}, memo.get("returns") or {}
     snap, units = memo.get("snapshot") or {}, deal.get("units")
-    model_name = (src.get("client_model") or {}).get("file") or ""
-    cs = memo.get("capital_stack") or {}
+    cs, su = memo.get("capital_stack") or {}, memo.get("sources_uses") or {}
+    hcf, sens = memo.get("hold_cash_flow") or {}, memo.get("sensitivity") or {}
     rr = src.get("rent_roll") or {}
+    has_debt = any(l.get("kind") == "debt" for l in cs.get("layers", []))
+    all_cash = bool(cs.get("layers")) and not has_debt
 
-    # ----- header
+    # ----- page head
     logo = brand.get("logo") or {}
     brand_mark = (f'<img class="logo" src="{esc(logo["data_uri"])}" alt="">' if logo.get("data_uri")
                   else f'<span class="wordmark">{esc(logo.get("wordmark_text") or brand.get("firm", {}).get("display_name") or "")}</span>')
-    meta = [deal.get("address", "").upper()]
-    if units:
-        meta.append(f"{S.add(fmt_int(units))} UNITS")
-    if deal.get("year_built"):
-        meta.append(f"{deal['year_built']} VINTAGE")
-    if deal.get("total_sf"):
-        meta.append(f"{S.add(fmt_int(deal['total_sf']))} SF")
-    um = memo.get("unit_mix") or {}
-    mix_parts = []
-    for r in um.get("rows", []):
-        if r.get("units"):
-            mix_parts.append(f"{S.add(fmt_int(r['units']))} {r['label'].upper().replace(' BED', 'BR')}")
-    meta2 = mix_parts + ([f"{S.add(fmt_pct(snap.get('occupancy_pct')))} OCCUPIED"] if is_num(snap.get("occupancy_pct")) else []) + \
-        ([f"RENT ROLL {date_label(rr.get('as_of')).upper()}"] if rr.get("as_of") else [])
-    chips = [c for c in (memo.get("strategy"), memo.get("status_label") or "Screening memo") if c]
-    sub_right = []
+    marks = [memo.get("status_label") or "Screening memo"]
+    if memo.get("strategy"):
+        marks.append(memo["strategy"])
+    if all_cash:
+        marks.append("All cash")
     if terms.get("hold_years"):
-        sub_right.append(f"{terms['hold_years']}-YR HOLD")
-    if terms.get("analysis_start"):
-        sub_right.append(f"START {date_label(terms['analysis_start'], True).upper()}")
-    sub_right.append(date_label(memo.get("memo_date", date.today().isoformat())).upper())
+        marks.append(f"{terms['hold_years']}-year hold")
+    facts = [deal.get("address", "")]
+    if units:
+        facts.append(f"{S.add(fmt_int(units))} units")
+    if deal.get("year_built"):
+        facts.append(f"built {deal['year_built']}")
+    if deal.get("building_type"):
+        facts.append(deal["building_type"])
+    if deal.get("total_sf"):
+        facts.append(f"{S.add(fmt_int(deal['total_sf']))} SF")
+    um = memo.get("unit_mix") or {}
+    mix_line = " · ".join(f"{S.add(fmt_int(r['units']))} × {esc(r['label'])}" for r in um.get("rows", []) if r.get("units"))
+    if is_num(snap.get("occupancy_pct")):
+        mix_line += f" · {S.add(fmt_pct(snap['occupancy_pct']))} occupied on the {esc(date_label(rr.get('as_of')))} rent roll"
+    com = memo.get("commentary") or {}
+    summary_html = ""
+    if com.get("text"):
+        pill = '<span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">Draft</span>' if com.get("status", "draft") == "draft" else ""
+        summary_html = f'<div class="ph__summary">{pill}<p>{esc(com["text"])}</p></div>'
 
-    # ----- KPI row
-    lev, unl = ret.get("levered") or {}, ret.get("unlevered") or {}
-    equity = next((l["amount"] for l in cs.get("layers", []) if l.get("kind") == "equity"), None)
+    # ----- deal metrics (rx-metric-tile grid)
+    lev, unl, ex = ret.get("levered") or {}, ret.get("unlevered") or {}, ret.get("exit") or {}
 
-    def kpi(label, value, unit, sub):
-        unit = unit if value != "-" else ""
-        return (f'<div class="kpi"><div class="lab">{esc(label)}</div><div class="big">{esc(value)}<span class="u">{esc(unit)}</span></div>'
-                f'<div class="sub">{esc(sub)}</div></div>')
-    if ret:
-        irr, mo, coc = lev.get("irr"), lev.get("moic"), lev.get("avg_coc")
-        S.add(fmt_ratio(irr)); S.add(fmt_mult(mo)); S.add(fmt_ratio(coc))
-        k1 = kpi("Levered IRR", f"{irr * 100:.1f}" if is_num(irr) else "-", "%", f"unlevered {S.add(fmt_ratio(unl.get('irr')))}")
-        k2 = kpi("Equity multiple", f"{mo:.2f}" if is_num(mo) else "-", "x", f"on {S.add(fmt_compact(equity))} total equity" if is_num(equity) else "")
-        k3 = kpi("Avg cash-on-cash", f"{coc * 100:.1f}" if is_num(coc) else "-", "%",
-                 f"years 1 to {terms['hold_years']}" if terms.get("hold_years") else "hold average")
-        S.money(equity)
+    def tile(label, value, comparison=""):
+        return (f'<div class="rx-metric-tile"><p class="rx-metric-tile__label">{esc(label)}</p>'
+                f'<div class="rx-metric-tile__row"><p class="rx-metric-tile__value">{esc(value)}</p></div>'
+                f'<p class="rx-metric-tile__comparison">{esc(comparison)}</p></div>')
+    S.money(terms.get("price")); S.money(der["price_per_unit"]); S.money(lev.get("profit")); S.money(ex.get("gross_proceeds"))
+    dscr = [x for x in (hcf.get("dscr") or []) if is_num(x)]
+    t12_cap = der["cap"].get("T12")
+    tiles = [
+        tile("Levered IRR", S.add(fmt_ratio(lev.get("irr"))), f"Unlevered {S.add(fmt_ratio(unl.get('irr')))}" if unl else ""),
+        tile("Equity multiple", S.add(fmt_mult(lev.get("moic"))), f"Profit {S.add(fmt_compact(lev.get('profit')))}" if is_num(lev.get("profit")) else ""),
+        tile("Avg cash-on-cash", S.add(fmt_ratio(lev.get("avg_coc"))), f"Years 1 to {terms['hold_years']}" if terms.get("hold_years") else ""),
+        tile("Purchase price", S.add(fmt_compact(terms.get("price"))), f"{S.money(der['price_per_unit'])} per unit" if is_num(der["price_per_unit"]) else ""),
+        tile("Going-in cap", S.add(fmt_ratio(terms.get("going_in_cap_model"), 2)),
+             f"Pro forma NOI · {S.add(fmt_ratio(t12_cap, 2))} on T12" if is_num(t12_cap) else "Pro forma NOI"),
+        tile("Min DSCR", S.add(fmt_mult(min(dscr))), "Lowest year of the hold") if dscr else
+        tile("Exit cap", S.add(fmt_ratio(ex.get("cap"), 2)),
+             f"{S.add(fmt_compact(ex.get('gross_proceeds')))} sale in Y{terms.get('hold_years')}" if is_num(ex.get("gross_proceeds")) else ""),
+    ]
+    metrics_html = f'<div class="mt-grid">{"".join(tiles)}</div>' if ret or is_num(terms.get("price")) else ph("IRR, multiple, cash-on-cash, price, going-in and exit cap")
+
+    # ----- NOI over the hold
+    if hcf.get("noi"):
+        years = hcf.get("years") or [f"Y{i + 1}" for i in range(len(hcf["noi"]))]
+        for v in hcf["noi"]:
+            S.money(v)
+        chart = noi_chart((act.get("noi") or {}).get("T12"), years, hcf["noi"], hcf.get("coc") or [], primary)
+        rows = []
+
+        def hrow(label, vals, f, cls=""):
+            return (f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>' +
+                    "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{esc(f(v))}</td>' for v in vals) + "</tr>")
+        cm = lambda v: S.add(fmt_compact(v)) if is_num(v) else "-"
+        neg = lambda v: f"({S.add(fmt_compact(abs(v)))})" if is_num(v) and v else "-"
+        if hcf.get("egr"):
+            rows.append(hrow("EGR", hcf["egr"], cm))
+        if hcf.get("opex"):
+            rows.append(hrow("OpEx", hcf["opex"], neg))
+        if has_debt and hcf.get("debt_service"):
+            rows.append(hrow("Debt service", hcf["debt_service"], neg))
+        if any(is_num(v) and v for v in hcf.get("capex") or []):
+            rows.append(hrow("Capital expenditures", hcf["capex"], neg))
+        if hcf.get("net_cash_flow"):
+            for v in hcf["net_cash_flow"]:
+                S.money(v)
+            rows.append(hrow("Net cash flow", hcf["net_cash_flow"], cm, " rx-rtbl__tr--strong"))
+        if dscr:
+            rows.append(hrow("DSCR", hcf["dscr"], lambda v: S.add(fmt_mult(v))))
+        for v in hcf.get("coc") or []:
+            S.add(fmt_ratio(v))
+        head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{esc(y)}</th>' for y in years)
+        legend = (f'<span class="rxt__pill"><span class="rxt__swatch" style="background:{NEUTRAL["hush"]}"></span>T12 actual</span>'
+                  f'<span class="rxt__pill"><span class="rxt__swatch" style="background:{primary}"></span>Pro forma</span>')
+        hold_html = (f'<div class="rxt__legend">{legend}</div>{chart}'
+                     f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:20%">' + "<col>" * len(years) +
+                     f'</colgroup><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">$ per year</th>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
+                     + ('<p class="rx-chart-note">No debt in the model, so net cash flow equals NOI.</p>' if not has_debt else ""))
     else:
-        k1, k2, k3 = (kpi(l, "-", "", "needs client model") for l in ("Levered IRR", "Equity multiple", "Avg cash-on-cash"))
-    dscr = [x for x in ((memo.get("hold_cash_flow") or {}).get("dscr") or []) if is_num(x)]
-    if dscr:
-        k4 = kpi("Min DSCR", f"{min(dscr):.2f}", "x", "lowest year of the hold")
-        S.add(f"{min(dscr):.2f}x")
-    else:
-        cap = der["cap"].get("T12")
-        S.add(fmt_ratio(cap, 2)); S.money(terms.get("price"))
-        k4 = kpi("Going-in cap on T12", f"{cap * 100:.2f}" if is_num(cap) else "-", "%",
-                 f"{S.add(fmt_compact(terms.get('price')))} · {S.money(der['price_per_unit'])} / unit" if is_num(terms.get("price")) else "needs price")
+        hold_html = ph("NOI, debt service, net cash flow and cash-on-cash by year")
 
-    # ----- returns
-    if ret:
-        def rrow(name, sub, r, strong=False):
-            S.money(r.get("profit"))
-            return (f'<tr{" class=strong" if strong else ""}><td>{esc(name)} <span class="q">{esc(sub)}</span></td>'
-                    f'<td class="n">{S.add(fmt_ratio(r.get("irr")))}</td><td class="n">{S.add(fmt_mult(r.get("moic")))}</td>'
-                    f'<td class="n">{S.add(fmt_ratio(r.get("avg_coc"))) if is_num(r.get("avg_coc")) else "-"}</td>'
-                    f'<td class="n">{S.add(fmt_compact(r.get("profit")))}</td></tr>')
-        rows = rrow("Unlevered", "property level", unl) + rrow("Levered", "deal level", lev, True)
-        if ret.get("lp"):
-            rows += rrow("LP", "net of fees and promote", ret["lp"])
-        ex = ret.get("exit") or {}
-        S.money(ex.get("gross_proceeds"))
-        exit_pu = ex["gross_proceeds"] / units if is_num(ex.get("gross_proceeds")) and units else None
-        strip = [("Exit cap" + (f" · Y{terms['hold_years']}" if terms.get("hold_years") else ""), S.add(fmt_ratio(ex.get("cap"), 2))),
-                 ("Gross sale proceeds", S.add(fmt_compact(ex.get("gross_proceeds")))),
-                 ("Exit $ / unit", S.money(exit_pu)),
-                 ("Going-in cap, pro forma", S.add(fmt_ratio(terms.get("going_in_cap_model"), 2)))]
-        strip_html = "".join(f'<div><div class="lab">{esc(a)}</div><div class="mid">{esc(b)}</div></div>' for a, b in strip)
-        returns_html = (f'<table class="t"><thead><tr><th></th><th class="n">IRR</th><th class="n">Multiple</th><th class="n">Avg CoC</th>'
-                        f'<th class="n">Profit</th></tr></thead><tbody>{rows}</tbody></table><div class="strip">{strip_html}</div>')
-    else:
-        returns_html = ph("Unlevered and levered IRR, multiple, cash-on-cash, profit, exit")
-
-    # ----- capital stack
-    if cs.get("layers"):
-        tot = sum(l["amount"] for l in cs["layers"])
-        shade = {"debt": primary, "equity": accent, "pref": mix(accent, "#ffffff", 0.45)}
-        bar = "".join(f'<div style="flex:{l["amount"] / tot:.4f};background:{shade.get(l.get("kind"), accent)}"></div>' for l in cs["layers"] if l["amount"])
-        legend = ""
-        for l in cs["layers"]:
-            S.money(l["amount"])
-            legend += (f'<div class="lg"><span class="sw" style="background:{shade.get(l.get("kind"), accent)}"></span>{esc(l["label"])}'
-                       f'<span class="r">{S.add(fmt_compact(l["amount"]))} · {S.add(fmt_ratio(l["amount"] / tot))}</span></div>')
-        stack_html = f'<div class="bar">{bar}</div>{legend}<div class="terms">' + "".join(f"<div>{esc(t)}</div>" for t in cs.get("terms", [])) + "</div>"
-    else:
-        stack_html = ph("Debt and equity layers, loan terms")
-
-    # ----- sources and uses
-    su = memo.get("sources_uses") or {}
+    # ----- capitalization
     if su.get("uses"):
-        def su_rows(items, total):
-            return "".join(f'<tr><td>{esc(i["label"])}</td><td class="n">{S.money(i["amount"])}</td><td class="n">{S.add(fmt_ratio(i["amount"] / total))}</td></tr>' for i in items) + \
-                   f'<tr class="tot"><td>Total</td><td class="n">{S.money(total)}</td><td class="n">100%</td></tr>'
-        su_html = (f'<table class="t"><thead><tr><th>Uses</th><th class="n">$</th><th class="n">%</th></tr></thead><tbody>{su_rows(su["uses"], der["uses_total"])}</tbody></table>'
-                   f'<table class="t gap"><thead><tr><th>Sources</th><th class="n">$</th><th class="n">%</th></tr></thead><tbody>{su_rows(su["sources"], der["sources_total"])}</tbody></table>')
+        def su_rows(title, items, total):
+            out = f'<tr class="rx-rtbl__group"><th class="rx-rtbl__grouptitle" colspan="3">{esc(title)}</th></tr>'
+            for it in items:
+                out += (f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(it["label"])}</th>'
+                        f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.money(it["amount"])}</td>'
+                        f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(it["amount"] / total))}</td></tr>')
+            return out + (f'<tr class="rx-rtbl__tr rx-rtbl__tr--total"><th scope="row" class="rx-rtbl__rowlabel">Total {esc(title.lower())}</th>'
+                          f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.money(total)}</td><td class="rx-rtbl__td rx-rtbl__td--num">100%</td></tr>')
+        cap_html = (f'<div class="rx-rtbl"><table class="rx-rtbl__table"><colgroup><col style="width:50%"><col><col style="width:18%"></colgroup>'
+                    f'<thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">At closing</th><th class="rx-rtbl__th rx-rtbl__th--num">$</th>'
+                    f'<th class="rx-rtbl__th rx-rtbl__th--num">%</th></tr></thead><tbody>{su_rows("Uses", su["uses"], der["uses_total"])}'
+                    f'{su_rows("Sources", su["sources"], der["sources_total"])}</tbody></table></div>')
+        if cs.get("terms"):
+            cap_html += '<div class="rx-detail-list">' + "".join(f'<div class="rx-detail-list__row"><span class="rx-detail-list__label">{esc(t)}</span></div>' for t in cs["terms"]) + "</div>"
+        for l in cs.get("layers", []):
+            S.money(l["amount"])
     else:
-        su_html = ph("Sources and uses at closing")
+        cap_html = ph("Sources and uses, debt terms")
 
-    # ----- sensitivity heatmap
-    sens = memo.get("sensitivity") or {}
+    # ----- sensitivity (report table, base row and column highlighted)
     if sens.get("values"):
-        flat = [v for r in sens["values"] for v in r if is_num(v)]
-        lo, hi = min(flat), max(flat)
         base = sens.get("base") or {}
+        pct = sens.get("format", "pct") == "pct"
+        head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num{" rx-rtbl__th--subject" if c == base.get("col") else ""}">{esc(c)}</th>' for c in sens["cols"])
         body = ""
         for rl, rv in zip(sens["rows"], sens["values"]):
-            cells = ""
-            for cl, v in zip(sens["cols"], rv):
-                bg = mix("#ffffff", primary, 0.08 + 0.82 * (v - lo) / ((hi - lo) or 1))
-                fg = "#ffffff" if contrast(bg, "#ffffff") >= 4.5 else NEUTRAL["ink"]
-                val = f"{v * 100:.1f}" if sens.get("format", "pct") == "pct" else f"{v:.2f}x"
-                S.add(val + ("%" if sens.get("format", "pct") == "pct" else ""))
-                is_base = base.get("row") == rl and base.get("col") == cl
-                cells += f'<td class="hm{" base" if is_base else ""}" style="background:{bg};color:{fg}">{esc(val)}</td>'
-            body += f'<tr><td class="rl">{esc(rl)}</td>{cells}</tr>'
-        head = "".join(f'<th>{esc(c)}</th>' for c in sens["cols"])
-        sens_html = (f'<table class="hm-t"><thead><tr><th class="corner">{esc(sens.get("row_label", ""))}</th>{head}</tr></thead><tbody>{body}</tbody></table>'
-                     f'<div class="src">{esc(sens.get("title", ""))}. Outlined cell is the base case.</div>')
+            is_row = rl == base.get("row")
+            body += f'<tr class="rx-rtbl__tr{" rx-rtbl__tr--subject" if is_row else ""}"><th scope="row" class="rx-rtbl__rowlabel">{esc(rl)}</th>'
+            for c, v in zip(sens["cols"], rv):
+                txt = S.add(fmt_ratio(v)) if pct else S.add(fmt_mult(v))
+                cls = " rx-rtbl__td--subject" if c == base.get("col") else ""
+                cls += " is-base" if is_row and c == base.get("col") else ""
+                body += f'<td class="rx-rtbl__td rx-rtbl__td--num{cls}">{esc(txt)}</td>'
+            body += "</tr>"
+        sens_html = (f'<div class="rx-rtbl"><table class="rx-rtbl__table"><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">'
+                     f'{esc(sens.get("row_label", ""))}</th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+                     f'<p class="rx-chart-note">{esc(sens.get("title", ""))}. Base case in bold.</p>')
     else:
-        sens_html = ph("IRR grid, for example exit cap rate by hold period")
+        sens_html = ph("IRR by exit cap rate and hold period")
 
-    # ----- actual to pro forma tiles
-    monthly, hcf = act.get("monthly") or {}, memo.get("hold_cash_flow") or {}
-    tiles = []
-
-    def tile(label, sub, a, p, d, spark="", worse_up=False, pts=False):
-        if pts:
-            dtxt = f"{d:+.1f} pts" if is_num(d) else ""
-        else:
-            dtxt = fmt_signed_pct(d) if is_num(d) else ""
-            if is_num(d):
-                S.add(f"{abs(d) * 100:.1f}%")
-        S.add(dtxt)
-        cls = ("dn" if (d > 0) == worse_up else "up") if is_num(d) and abs(d) >= 0.0005 else ""
-        if p == "-":  # no pro forma: show the actual alone
-            sub = sub.split(" to ")[0]
-            return (f'<div class="tile"><div class="lab">{esc(label)}</div><div class="flow"><span class="p">{esc(a)}</span></div>'
-                    f'<div class="d"></div>{spark}<div class="sub">{esc(sub)}</div></div>')
-        return (f'<div class="tile"><div class="lab">{esc(label)}</div><div class="flow"><span class="a">{esc(a)}</span>'
-                f'<span class="arr">→</span><span class="p">{esc(p)}</span></div><div class="d {cls}">{esc(dtxt)}</div>'
-                f'{spark}<div class="sub">{esc(sub)}</div></div>')
-    if is_num(snap.get("in_place_rent")):
-        r_pf = pf.get("effective_rent")
-        d_r = (r_pf - snap["in_place_rent"]) / snap["in_place_rent"] if is_num(r_pf) else None
-        tiles.append(tile("Rent / unit / mo", "in-place to pro forma effective", S.money(snap["in_place_rent"]), S.money(r_pf) if is_num(r_pf) else "-", d_r))
-    if is_num(snap.get("occupancy_pct")):
-        o_pf = pf.get("physical_occupancy")
-        d_o = o_pf * 100 - snap["occupancy_pct"] if is_num(o_pf) else None
-        tiles.append(tile("Occupancy", "rent roll to pro forma", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", d_o, pts=True))
-    for key, label, worse_up in (("egr", "EGR", False), ("opex", "OpEx", True), ("noi", "NOI", False)):
-        a, p = (act.get(key) or {}).get("T12"), pf.get(key)
-        S.money(a); S.money(p)
-        spark = sparkline([x * 12 for x in monthly.get(key, []) if is_num(x)], hcf.get(key) or ([] if key != "noi" else []), NEUTRAL["hush"], accent)
-        tiles.append(tile(f"{label} (annual)", "T12 actual to Y1 pro forma", S.add(fmt_compact(a)), S.add(fmt_compact(p)) if is_num(p) else "-",
-                          der["pf_delta"].get(key), spark, worse_up))
-    tiles_html = "".join(tiles)
-
-    # ----- operating statement: grouped actuals, then pro forma
+    # ----- operating statement (report table; pro forma is the subject column)
     cols = act.get("columns", [])
     has_pf = bool(pf)
-    head = "".join(f'<th class="n">{esc(c["label"])}</th>' for c in cols)
-    head += (f'<th class="n pf">{esc(pf.get("label", "Y1 pro forma"))}</th><th class="n">Change vs T12</th>' if has_pf else "")
+    ncol = len(cols) + 1 + (2 if has_pf else 0)
+    head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{esc(c["label"])}</th>' for c in cols)
+    if has_pf:
+        head += f'<th class="rx-rtbl__th rx-rtbl__th--num rx-rtbl__th--subject">{esc(pf.get("label", "Y1 pro forma"))}</th><th class="rx-rtbl__th rx-rtbl__th--num">Change</th>'
 
-    def grow(key, label, cls=""):
+    def change_txt(p, a):
+        if not (is_num(p) and is_num(a)):
+            return "-"
+        c = p - a
+        S.money(c)
+        return S.add(("+" if c > 0 else "-" if c < 0 else "") + fmt_compact(abs(c))) if abs(c) >= 1 else "$0"
+
+    def orow(key, label, cls=""):
         if key in ("egr", "opex", "noi"):
             vals, p = [(act.get(key) or {}).get(c["key"]) for c in cols], pf.get(key)
         else:
             vals, p = [der["groups"][key].get(c["key"]) for c in cols], (pf.get("groups") or {}).get(key)
-        tds = "".join(f'<td class="n">{S.money(v)}</td>' for v in vals)
+        tds = "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.money(v)}</td>' for v in vals)
         if has_pf:
-            a12 = vals[[c["key"] for c in cols].index("T12")] if "T12" in [c["key"] for c in cols] else None
-            chg = p - a12 if is_num(p) and is_num(a12) else None
-            ctxt = ("+" if chg > 0 else "-" if chg < 0 else "") + fmt_compact(abs(chg)) if is_num(chg) and abs(chg) >= 1 else ("$0" if is_num(chg) else "-")
-            S.money(chg)
-            tds += f'<td class="n pf">{S.money(p)}</td><td class="n dl">{S.add(ctxt)}</td>'
-        return f'<tr class="{cls}"><td>{esc(label)}</td>{tds}</tr>'
-    span = len(cols) + 1 + (2 if has_pf else 0)
-    ops_rows = (f'<tr class="sec"><td colspan="{span}">Revenue</td></tr>' + "".join(grow(k, l) for k, l in REV_GROUPS) +
-                grow("egr", "Effective gross revenue", "tot") +
-                f'<tr class="sec"><td colspan="{span}">Operating expenses</td></tr>' + "".join(grow(k, l) for k, l in EXP_GROUPS) +
-                grow("opex", "Total operating expenses", "tot") + grow("noi", "Net operating income", "noi"))
+            a12 = (act.get(key) or {}).get("T12") if key in ("egr", "opex", "noi") else der["groups"][key].get("T12")
+            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.money(p)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{change_txt(p, a12)}</td>'
+        return f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}</tr>'
+
+    def grp(title):
+        return f'<tr class="rx-rtbl__group"><th class="rx-rtbl__grouptitle" colspan="{ncol}">{esc(title)}</th></tr>'
+
+    def single(label, actual_txt, pf_txt, change=""):
+        blanks = "".join('<td class="rx-rtbl__td"></td>' for _ in cols[1:])
+        tds = f'<td class="rx-rtbl__td rx-rtbl__td--num">{esc(actual_txt)}</td>{blanks}'
+        if has_pf:
+            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{esc(pf_txt)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{esc(change)}</td>'
+        return f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}</tr>'
+    body = grp("Revenue") + "".join(orow(k, l) for k, l in REV_GROUPS) + orow("egr", "Effective gross revenue", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
+    body += grp("Operating expenses") + "".join(orow(k, l) for k, l in EXP_GROUPS) + orow("opex", "Total operating expenses", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
+    body += orow("noi", "Net operating income", " rx-rtbl__tr--strong rx-rtbl__tr--noi")
+    ops_extra = ""
+    if is_num(snap.get("in_place_rent")):
+        r_pf = pf.get("effective_rent")
+        ops_extra += single("Rent / unit / mo (rent roll)", S.money(snap["in_place_rent"]), S.money(r_pf) if is_num(r_pf) else "-",
+                            change_txt(r_pf, snap["in_place_rent"]) if is_num(r_pf) else "")
+    if is_num(snap.get("occupancy_pct")):
+        o_pf = pf.get("physical_occupancy")
+        d_o = f"{o_pf * 100 - snap['occupancy_pct']:+.1f} pts" if is_num(o_pf) else ""
+        S.add(d_o)
+        ops_extra += single("Occupancy (rent roll)", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", d_o)
     if is_num(terms.get("price")):
-        caps = "".join(f'<td class="n">{S.add(fmt_ratio(der["cap"].get(c["key"]), 2))}</td>' for c in cols)
+        caps = "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(der["cap"].get(c["key"]), 2))}</td>' for c in cols)
         if has_pf:
             pf_cap = pf["noi"] / terms["price"] if is_num(pf.get("noi")) else None
-            caps += f'<td class="n pf">{S.add(fmt_ratio(pf_cap, 2))}</td><td></td>'
-        ops_rows += f'<tr class="sub"><td>Cap rate on purchase price</td>{caps}</tr>'
+            caps += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.add(fmt_ratio(pf_cap, 2))}</td><td class="rx-rtbl__td"></td>'
+        ops_extra += f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">Cap rate on purchase price</th>{caps}</tr>'
+    if ops_extra:
+        body += grp("Operations and pricing") + ops_extra
     windows = "; ".join(f'{c["label"]} {c["window"]}' for c in cols if c.get("window"))
-    ops_html = (f'<table class="t ops"><thead><tr><th></th>{head}</tr></thead><tbody>{ops_rows}</tbody></table>'
-                f'<div class="src">Actuals from the Radix operating statement ({esc(windows)}). '
-                + (f'Pro forma from {esc(model_name)}. ' if has_pf else "") + 'Groups, cap rates and changes derived.</div>')
+    ops_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:27%">' + "<col>" * (ncol - 1) +
+                f'</colgroup><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">$ annual</th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+                f'<p class="rx-chart-note">{esc(windows)}.</p>')
 
-    # ----- risk flags
+    # ----- underwriting checks
     flags = der["flags"]
     fired = [f for f in flags if f["fired"]]
+    clear = [f for f in flags if not f["fired"]]
     for f in fired:
         for tok in NUM_TOKEN.findall(f["observed"]):
             S.add(tok)
-    flags_html = "".join(f'<div class="flag"><div class="fn">{esc(f["name"])}</div><div class="fo">{esc(f["observed"])}</div>'
-                         f'<div class="ft">rule: {esc(f["test"])}</div></div>' for f in fired) or '<div class="sub">No rules fired.</div>'
-    flags_html += "".join(f'<div class="note">{esc(n)}</div>' for n in memo.get("analyst_notes") or [])
-
-    # ----- hold-period cash flow
-    if hcf.get("noi"):
-        years = hcf.get("years") or [f"Y{i + 1}" for i in range(len(hcf["noi"]))]
-
-        def hrow(label, vals, kind="money", cls=""):
-            if not vals:
-                return ""
-            def f(v):
-                if not is_num(v):
-                    return "-"
-                if kind == "money":
-                    S.money(v)
-                    return S.add(fmt_compact(v))
-                if kind == "neg":
-                    S.money(v)
-                    return f"({S.add(fmt_compact(abs(v)))})" if v else "-"
-                if kind == "pct":
-                    return S.add(fmt_ratio(v))
-                return S.add(fmt_mult(v))
-            return f'<tr class="{cls}"><td>{esc(label)}</td>' + "".join(f'<td class="n">{esc(f(v))}</td>' for v in vals) + "</tr>"
-        has_debt = any(is_num(v) and v for v in hcf.get("debt_service") or [])
-        has_capex = any(is_num(v) and v for v in hcf.get("capex") or [])
-        hcf_html = (f'<table class="t hcf"><thead><tr><th></th>' + "".join(f'<th class="n">{esc(y)}</th>' for y in years) + '</tr></thead><tbody>' +
-                    hrow("Effective gross revenue", hcf.get("egr")) + hrow("Operating expenses", hcf.get("opex"), "neg") +
-                    hrow("NOI", hcf["noi"], "money", "strongrow") +
-                    (hrow("Debt service", hcf.get("debt_service"), "neg") if has_debt else "") +
-                    (hrow("Capital expenditures", hcf.get("capex"), "neg") if has_capex else "") +
-                    hrow("Net cash flow", hcf.get("net_cash_flow"), "money", "tot") +
-                    hrow("Cash-on-cash", hcf.get("coc"), "pct") + (hrow("DSCR", hcf.get("dscr"), "x") if has_debt else "") +
-                    "</tbody></table>")
-        if not has_debt:
-            hcf_html += '<div class="src">No debt in the model: net cash flow equals NOI.</div>'
-    else:
-        hcf_html = ph("NOI, debt service, net cash flow and cash-on-cash by year")
-
-    # ----- footer
-    com = memo.get("commentary") or {}
-    left_src = [f"Radix · {memo.get('account', '')}", f"Rent roll {date_label(rr.get('as_of'))}",
-                f"T12 through {date_label((src.get('operating_statement') or {}).get('period_end'), True)}"] + ([model_name] if model_name else [])
-    all_cash = cs.get("layers") and not any(l.get("kind") == "debt" for l in cs["layers"])
+    checks_html = "".join(
+        f'<div class="chk"><span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">Review</span>'
+        f'<div><div class="chk__name">{esc(f["name"])}</div><div class="chk__obs">{esc(f["observed"])}</div>'
+        f'<div class="chk__rule">{esc(f["test"])}</div></div></div>' for f in fired)
+    checks_html += "".join(
+        f'<div class="chk chk--clear"><span class="rx-status-pill rx-status-pill--success rx-status-pill--compact">Clear</span>'
+        f'<div><div class="chk__name">{esc(f["name"])}</div></div></div>' for f in clear)
+    checks_html += "".join(f'<div class="chk"><span class="rx-status-pill rx-status-pill--brand rx-status-pill--compact">Note</span><div>{esc(n)}</div></div>'
+                           for n in memo.get("analyst_notes") or [])
+    count_pill = f'<span class="rx-status-pill rx-status-pill--warning rx-status-pill--compact">{len(fired)} to review</span>' if fired else ""
 
     css = f"""
 {font_face_css()}
-@page {{ size: Letter; margin: 0.42in 0.45in 0.4in 0.45in; }}
+@page {{ size: Letter; margin: 0; }}
 * {{ box-sizing: border-box; }}
-html, body {{ margin:0; padding:0; background:#fff; }}
-body {{ font-family:'{font}', Arial, sans-serif; color:{NEUTRAL['ink']}; font-size:7.3pt; line-height:1.35; letter-spacing:-0.004em;
-       -webkit-print-color-adjust:exact; print-color-adjust:exact; font-variant-numeric:tabular-nums; }}
-.lab, th {{ font-size:5.8pt; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:{NEUTRAL['faint']}; }}
-.hd {{ display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:10px; border-bottom:2px solid {NEUTRAL['ink']}; }}
-.hd h1 {{ margin:0; font-size:21pt; font-weight:600; letter-spacing:-0.025em; line-height:1.05; color:{NEUTRAL['ink']}; }}
-.meta {{ margin-top:6px; font-size:5.9pt; letter-spacing:.09em; color:{NEUTRAL['faint']}; font-weight:600; }}
-.meta + .meta {{ margin-top:2px; }}
-.hr {{ text-align:right; }}
-.chips {{ display:flex; gap:6px; justify-content:flex-end; align-items:center; }}
-.chip {{ border:1px solid {NEUTRAL['rule_strong']}; border-radius:999px; padding:2px 8px; font-size:5.8pt; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:{NEUTRAL['muted']}; }}
-.wordmark {{ font-weight:800; font-size:11.5pt; letter-spacing:-0.02em; color:{primary}; margin-left:6px; }}
-.logo {{ max-height:18px; max-width:120px; margin-left:6px; }}
-.kpis {{ display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid {NEUTRAL['rule']}; }}
-.kpi {{ padding:11px 12px 11px 0; }}
-.kpi + .kpi {{ border-left:1px solid {NEUTRAL['rule']}; padding-left:12px; }}
-.big {{ font-size:23pt; font-weight:500; letter-spacing:-0.03em; line-height:1.1; margin-top:5px; color:{NEUTRAL['strong']}; }}
-.big .u {{ font-size:11pt; color:{NEUTRAL['faint']}; margin-left:1px; }}
-.sub {{ font-size:6.2pt; color:{NEUTRAL['faint']}; margin-top:3px; }}
-.row {{ display:grid; gap:10px; margin-top:10px; }}
-.c2 {{ grid-template-columns:1.6fr 1fr; }}
-.c2b {{ grid-template-columns:1fr 1.45fr; }}
-.card {{ border:1px solid {NEUTRAL['rule']}; border-radius:8px; padding:10px 12px; background:#fff; break-inside:avoid; }}
-.card.soft {{ background:{NEUTRAL['panel']}; }}
-.ch {{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }}
-.ch .lab {{ color:{NEUTRAL['ink']}; }}
-.ch .lab.r {{ color:{NEUTRAL['hush']}; }}
-table.t {{ width:100%; border-collapse:collapse; }}
-table.t th {{ text-align:left; padding:0 0 4px; border-bottom:1px solid {NEUTRAL['rule_strong']}; }}
-table.t td {{ padding:2.6px 0; border-bottom:1px solid {NEUTRAL['rule']}; }}
-table.t.gap {{ margin-top:8px; }}
-.n {{ text-align:right; white-space:nowrap; }}
-table.t td.n, table.t th.n {{ padding-left:8px; text-align:right; }}
-.q {{ color:{NEUTRAL['faint']}; font-size:6.2pt; }}
-tr.strong td {{ font-weight:700; color:{NEUTRAL['strong']}; }}
-tr.strongrow td {{ font-weight:700; }}
-tr.tot td {{ font-weight:700; border-top:1px solid {NEUTRAL['ink']}; border-bottom:0; }}
-tr.sec td {{ font-size:5.8pt; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:{NEUTRAL['faint']}; padding-top:6px; border-bottom:0; }}
-tr.noi td {{ font-weight:800; background:{tint}; border-bottom:0; }}
-tr.noi td:first-child {{ padding-left:4px; }}
-tr.sub td {{ color:{NEUTRAL['faint']}; border-bottom:0; }}
-td.pf, th.pf {{ background:{mix('#ffffff', accent, 0.07)}; padding-right:5px; }}
-tr.noi td.pf {{ background:{mix(tint, accent, 0.12)}; }}
-td.dl {{ color:{NEUTRAL['muted']}; }}
-.strip {{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed {NEUTRAL['rule_strong']}; }}
-.mid {{ font-size:10.5pt; font-weight:600; letter-spacing:-0.02em; margin-top:2px; color:{NEUTRAL['strong']}; }}
-.bar {{ display:flex; height:22px; border-radius:4px; overflow:hidden; gap:2px; margin:4px 0 8px; }}
-.lg {{ display:flex; align-items:center; gap:6px; padding:2px 0; }}
-.lg .sw {{ width:7px; height:7px; border-radius:2px; display:inline-block; }}
-.lg .r {{ margin-left:auto; color:{NEUTRAL['muted']}; }}
-.terms {{ margin-top:8px; padding-top:7px; border-top:1px dashed {NEUTRAL['rule_strong']}; font-size:6.2pt; color:{NEUTRAL['faint']}; line-height:1.55; }}
-.hm-t {{ width:100%; border-collapse:separate; border-spacing:2px; }}
-.hm-t th {{ padding:2px 4px; text-align:right; }}
-.hm-t th.corner {{ text-align:left; }}
-.hm-t td.rl {{ font-weight:700; color:{NEUTRAL['muted']}; padding-right:6px; white-space:nowrap; }}
-.hm-t td.hm {{ padding:5px 7px; border-radius:3px; font-weight:600; text-align:right; }}
-.hm-t td.base {{ outline:2px solid {NEUTRAL['ink']}; outline-offset:-2px; }}
-.tiles {{ display:grid; grid-template-columns:repeat(5,1fr); border-top:1px solid {NEUTRAL['rule']}; border-bottom:1px solid {NEUTRAL['rule']}; margin-top:10px; }}
-.tile {{ padding:9px 10px 8px 0; }}
-.tile + .tile {{ border-left:1px solid {NEUTRAL['rule']}; padding-left:10px; }}
-.flow {{ display:flex; align-items:baseline; gap:4px; margin-top:5px; white-space:nowrap; }}
-.flow .a {{ font-size:9.2pt; color:{NEUTRAL['faint']}; font-weight:500; }}
-.flow .arr {{ color:{NEUTRAL['hush']}; }}
-.flow .p {{ font-size:9.2pt; font-weight:700; color:{NEUTRAL['strong']}; }}
-.d {{ font-size:6.2pt; font-weight:700; color:{NEUTRAL['muted']}; margin-top:1px; }}
-.spark {{ display:block; margin:3px 0 0; }}
-.flag {{ padding:4px 0; border-bottom:1px solid {NEUTRAL['rule']}; }}
-.flag:last-child {{ border-bottom:0; }}
-.fn {{ font-weight:700; color:{NEUTRAL['strong']}; }}
-.fo {{ color:{NEUTRAL['warn']}; font-weight:600; }}
-.ft {{ font-size:5.8pt; color:{NEUTRAL['hush']}; }}
-.note {{ padding:4px 0; border-top:1px dashed {NEUTRAL['rule_strong']}; }}
-.src {{ margin-top:5px; font-size:5.8pt; color:{NEUTRAL['hush']}; }}
-.ph {{ border:1px dashed {NEUTRAL['warn']}; background:{NEUTRAL['warn_bg']}; border-radius:6px; padding:7px 9px; display:flex; flex-direction:column; gap:2px; color:{NEUTRAL['muted']}; }}
-.ph b {{ font-size:5.8pt; letter-spacing:.08em; text-transform:uppercase; color:{NEUTRAL['warn']}; }}
-.ft-row {{ display:grid; grid-template-columns:1fr 2.3fr 1fr; gap:14px; align-items:center; margin-top:12px; padding-top:9px; border-top:1px solid {NEUTRAL['rule_strong']}; }}
-.ft-src {{ font-size:5.6pt; letter-spacing:.07em; text-transform:uppercase; color:{NEUTRAL['hush']}; line-height:1.6; }}
-.summary {{ text-align:center; font-size:7.6pt; font-style:italic; color:{NEUTRAL['muted']}; line-height:1.45; }}
-.summary .draft {{ display:block; font-style:normal; font-size:5.6pt; letter-spacing:.08em; text-transform:uppercase; color:{NEUTRAL['warn']}; margin-top:3px; font-weight:700; }}
-.ft-brand {{ text-align:right; font-size:6.4pt; color:{NEUTRAL['faint']}; }}
-.ft-brand b {{ color:{primary}; font-weight:800; }}
-.disc {{ margin-top:6px; font-size:5.4pt; color:{NEUTRAL['hush']}; }}
+html {{ background:#f5f5fa; }}
+body {{ margin:0; padding:0.36in 0.4in 0.3in; background:#f5f5fa; font-family:'{font}', Arial, sans-serif; color:#181d27;
+       font-size:7.2pt; line-height:1.4; -webkit-print-color-adjust:exact; print-color-adjust:exact; font-variant-numeric:tabular-nums; }}
+p {{ margin:0; }}
+.card {{ background:#fff; border:1px solid rgba(112,115,147,.11); border-radius:12px; padding:10px 12px; break-inside:avoid; }}
+.card__head {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }}
+.card__title {{ font-size:8.2pt; font-weight:600; color:#181d27; }}
+.card__meta {{ font-size:6.4pt; font-weight:500; color:#a4a7ae; }}
+.rx-rtbl--dense .rx-rtbl__table {{ font-size:6.5pt; }}
+.rx-rtbl--dense th, .rx-rtbl--dense td {{ padding:0 4px; }}
+.rx-rtbl td.rx-rtbl__td--num {{ overflow:visible; text-overflow:clip; }}
+.ph {{ background:#fff; border:1px solid rgba(112,115,147,.11); border-radius:16px; padding:14px 16px 12px; }}
+.ph__titlerow {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }}
+.ph__identity {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }}
+.ph__title {{ margin:0; font-size:17pt; font-weight:700; color:#252b37; letter-spacing:-0.01em; }}
+.ph__marks {{ display:flex; gap:6px; }}
+.ph-mark {{ display:inline-flex; align-items:center; padding:1px 9px; border:1px solid #eaeaf0; border-radius:9999px; font-size:6.6pt; font-weight:600; color:#414651; background:#fbfbfe; }}
+.ph__aside {{ text-align:right; }}
+.wordmark {{ font-weight:800; font-size:12pt; letter-spacing:-0.02em; color:{primary}; }}
+.logo {{ max-height:20px; max-width:130px; }}
+.ph__date {{ font-size:6.6pt; color:#717680; font-weight:500; margin-top:2px; }}
+.ph__facts {{ margin-top:5px; font-size:7pt; color:#414651; font-weight:500; }}
+.ph__mix {{ margin-top:1px; font-size:7pt; color:#717680; font-weight:500; }}
+.ph__summary {{ display:flex; gap:8px; align-items:flex-start; margin-top:9px; padding-top:9px; border-top:1px solid #eaeaf0; }}
+.ph__summary p {{ font-size:7.8pt; line-height:1.5; color:#181d27; }}
+.grid {{ display:grid; gap:10px; margin-top:10px; }}
+.g-a {{ grid-template-columns: 1fr 1.32fr; }}
+.g-b {{ grid-template-columns: 1fr 1fr; }}
+.g-c {{ grid-template-columns: 1.62fr 1fr; }}
+.mt-grid {{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }}
+.rx-metric-tile {{ display:flex; flex-direction:column; gap:1px; padding:8px 10px; border:1px solid #eaeaf0; border-radius:8px; background:#fff; min-width:0; }}
+.rx-metric-tile__label {{ font-size:7pt; font-weight:500; color:#414651; }}
+.rx-metric-tile__row {{ display:flex; align-items:baseline; gap:2px; }}
+.rx-metric-tile__value {{ font-size:13.5pt; font-weight:600; line-height:1.25; color:#252b37; }}
+.rx-metric-tile__comparison {{ font-size:6.6pt; font-weight:500; color:#717680; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.rxt__legend {{ display:flex; gap:6px; margin-bottom:2px; }}
+.rxt__pill {{ display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border:1px solid #eaeaf0; border-radius:9999px; font-size:6.4pt; font-weight:600; color:#414651; }}
+.rxt__swatch {{ width:7px; height:7px; border-radius:2px; display:inline-block; }}
+.chart {{ display:block; margin:2px 0 6px; }}
+.chart .cv {{ font-size:8.4px; font-weight:600; fill:#252b37; }}
+.chart .cx {{ font-size:8.4px; font-weight:700; fill:#717680; }}
+.chart .cs {{ font-size:7.6px; font-weight:500; fill:#a4a7ae; }}
+.rx-rtbl {{ border:2px solid rgba(112,115,147,.102); border-radius:10px; overflow:hidden; background:#fff; }}
+.rx-rtbl__table {{ width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:7pt; line-height:1.3; color:#181d27; }}
+.rx-rtbl th, .rx-rtbl td {{ height:16px; padding:0 6px; vertical-align:middle; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:#fff; border:0 solid #eaeaf0; }}
+.rx-rtbl__th {{ padding:3px 6px !important; font-weight:700; color:#717680; border-right-width:1px !important; border-bottom-width:1px !important; }}
+.rx-rtbl__th--num {{ text-align:right !important; }}
+.rx-rtbl__rowlabel {{ font-weight:600; border-right-width:1px !important; border-bottom-width:1px !important; }}
+.rx-rtbl__td {{ border-right-width:1px !important; border-bottom-width:1px !important; }}
+.rx-rtbl__td--num {{ text-align:right !important; font-variant-numeric:tabular-nums; }}
+.rx-rtbl tr > *:last-child {{ border-right-width:0 !important; }}
+.rx-rtbl tbody tr:last-child > * {{ border-bottom-width:0 !important; }}
+.rx-rtbl .rx-rtbl__group > * {{ background:#f5f5fa; border-bottom-width:1px; }}
+.rx-rtbl__grouptitle {{ font-size:7.4pt; font-weight:700; padding:0 6px !important; }}
+.rx-rtbl .rx-rtbl__tr--subject > * {{ background:{tint}; }}
+.rx-rtbl .rx-rtbl__th--subject, .rx-rtbl .rx-rtbl__td--subject {{ background:{tint}; }}
+.rx-rtbl .rx-rtbl__tr--total > * {{ background:#f5f5fa; font-weight:700; }}
+.rx-rtbl__tr--total-first > * {{ border-top-width:1px !important; }}
+.rx-rtbl__tr--strong > * {{ font-weight:700; }}
+.rx-rtbl .rx-rtbl__tr--noi > * {{ border-top:1.5px solid {primary} !important; border-bottom:1.5px solid {primary} !important; }}
+.rx-rtbl td.is-base {{ font-weight:800; color:{primary}; box-shadow: inset 0 0 0 1.5px {primary}; }}
+.rx-detail-list {{ display:flex; flex-direction:column; gap:1px; margin-top:7px; }}
+.rx-detail-list__row {{ display:flex; justify-content:space-between; gap:8px; line-height:1.5; }}
+.rx-detail-list__label {{ font-size:6.8pt; font-weight:500; color:#414651; }}
+.rx-chart-note {{ margin-top:4px; font-size:6.2pt; line-height:1.45; color:#717680; }}
+.rx-status-pill {{ display:inline-flex; align-items:center; flex:none; padding:0 7px; border-radius:9999px; border:1px solid transparent; font-size:6pt; font-weight:600; line-height:13px; white-space:nowrap; }}
+.rx-status-pill--warning {{ color:#b54708; background:#fffaeb; }}
+.rx-status-pill--success {{ color:#067647; background:#ecfdf3; }}
+.rx-status-pill--brand {{ color:#1a62b2; background:#eff4fe; }}
+.chk {{ display:flex; gap:7px; align-items:flex-start; padding:5px 0; border-bottom:1px solid #eaeaf0; }}
+.chk:last-child {{ border-bottom:0; }}
+.chk__name {{ font-weight:600; color:#252b37; }}
+.chk__obs {{ color:#414651; font-weight:500; }}
+.chk__rule {{ font-size:6.1pt; color:#a4a7ae; }}
+.chk--clear {{ padding:3px 0; }}
+.chk--clear .chk__name {{ font-weight:500; color:#717680; }}
+.rx-alert {{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid #fedf89; background:#fffaeb; border-radius:8px; color:#414651; }}
+.rx-alert b {{ font-size:6.4pt; font-weight:700; color:#b54708; }}
+.foot {{ display:flex; justify-content:space-between; gap:16px; margin-top:9px; font-size:5.8pt; color:#a4a7ae; }}
 """
 
-    body = f"""
-<div class="hd">
-  <div><h1>{esc(deal.get('name'))}</h1><div class="meta">{esc(' · '.join(meta))}</div>
-  {f'<div class="meta">{esc(" · ".join(meta2))}</div>' if meta2 else ''}</div>
-  <div class="hr"><div class="chips">{''.join(f'<span class="chip">{esc(c)}</span>' for c in chips)}{brand_mark}</div>
-  <div class="meta">{esc(' · '.join(sub_right))}</div></div>
+    page_body = f"""
+<header class="ph">
+  <div class="ph__titlerow">
+    <div>
+      <div class="ph__identity"><h1 class="ph__title">{esc(deal.get('name'))}</h1>
+        <div class="ph__marks">{''.join(f'<span class="ph-mark">{esc(m)}</span>' for m in marks)}</div></div>
+      <div class="ph__facts">{esc(' · '.join(facts))}</div>
+      {f'<div class="ph__mix">{mix_line}</div>' if mix_line else ''}
+    </div>
+    <div class="ph__aside">{brand_mark}<div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
+  </div>
+  {summary_html}
+</header>
+<div class="grid g-a">
+  <section class="card"><div class="card__head"><span class="card__title">Deal metrics</span></div>{metrics_html}</section>
+  <section class="card"><div class="card__head"><span class="card__title">NOI over the hold</span></div>{hold_html}</section>
 </div>
-<div class="kpis">{k1}{k2}{k3}{k4}</div>
-<div class="row c2">
-  <div class="card"><div class="ch"><span class="lab">Returns</span><span class="lab r">{'All cash' if all_cash else 'Deal level'}</span></div>{returns_html}</div>
-  <div class="card soft"><div class="ch"><span class="lab">Capital stack</span></div>{stack_html}</div>
+<div class="grid g-b">
+  <section class="card"><div class="card__head"><span class="card__title">Capitalization</span></div>{cap_html}</section>
+  <section class="card"><div class="card__head"><span class="card__title">{esc(sens.get('metric', 'IRR'))} sensitivity</span><span class="card__meta">{esc(sens.get('col_label', ''))} across · {esc(sens.get('row_label', ''))} down</span></div>{sens_html}</section>
 </div>
-<div class="row c2b">
-  <div class="card"><div class="ch"><span class="lab">Sources and uses</span><span class="lab r">at closing</span></div>{su_html}</div>
-  <div class="card"><div class="ch"><span class="lab">Sensitivity · {esc(sens.get('metric', 'IRR'))}</span><span class="lab r">{esc(sens.get('col_label', ''))} × {esc(sens.get('row_label', ''))}</span></div>{sens_html}</div>
+<div class="grid g-c">
+  <section class="card"><div class="card__head"><span class="card__title">Operating statement</span></div>{ops_html}</section>
+  <section class="card"><div class="card__head"><span class="card__title">Underwriting checks</span>{count_pill}</div>{checks_html}</section>
 </div>
-<div class="tiles">{tiles_html}</div>
-<div class="row c2">
-  <div class="card"><div class="ch"><span class="lab">Operating statement · actual to pro forma</span><span class="lab r">$ annual</span></div>{ops_html}</div>
-  <div class="card"><div class="ch"><span class="lab">Risk flags · {len(fired)} of {len(flags)} rules fired</span></div>{flags_html}</div>
-</div>
-<div class="row"><div class="card"><div class="ch"><span class="lab">Hold-period cash flow</span><span class="lab r">pre-promote · $</span></div>{hcf_html}</div></div>
-<div class="ft-row">
-  <div class="ft-src">{'<br>'.join(esc(s) for s in left_src)}</div>
-  <div class="summary">{esc(com.get('text') or '')}{'<span class="draft">Draft for analyst review</span>' if com.get('text') and com.get('status', 'draft') == 'draft' else ''}</div>
-  <div class="ft-brand">Prepared with <b>Radix</b></div>
-</div>
-<div class="disc">{esc(brand.get('disclaimer') or '')}</div>
+<div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
 """
-    return f"<!doctype html><html><head><meta charset='utf-8'><title>{esc(deal.get('name'))} IC memo</title><style>{css}</style></head><body>{body}</body></html>"
+    return f"<!doctype html><html><head><meta charset='utf-8'><title>{esc(deal.get('name'))} IC memo</title><style>{css}</style></head><body>{page_body}</body></html>"
+
 
 
 # ---------- PDF ----------
@@ -920,7 +887,7 @@ def write_docx(memo, brand, der, docx_path):
     add("noi", "Net operating income", True, True)
     table(hdr, rows, bold=bold, shaded=shaded)
 
-    heading(f"Risk flags · {sum(f['fired'] for f in der['flags'])} of {len(der['flags'])} rules fired")
+    heading(f"Underwriting checks · {sum(f['fired'] for f in der['flags'])} to review")
     for f in der["flags"]:
         if f["fired"]:
             p = doc.add_paragraph(style="List Bullet"); r = p.add_run(f["name"] + ": "); r.bold = True
@@ -979,8 +946,8 @@ def write_docx(memo, brand, der, docx_path):
 def run_summary(memo, status, checks, placeholders, flags, outputs):
     lines = [f"# Run summary: {memo['deal'].get('name')} IC memo", "", f"Accuracy gate: **{status.replace('_', ' ')}**", "", "## Checks"]
     lines += [f"- {'PASS' if c['ok'] else 'FAIL'}: {c['check']}" + (f" ({c['detail']})" if c["detail"] and not c["ok"] else "") for c in checks]
-    lines += ["", f"## Risk flags ({sum(f['fired'] for f in flags)} of {len(flags)} fired)"]
-    lines += [f"- {'FIRED' if f['fired'] else 'clear'}: {f['name']} ({f['test']}): {f['observed']}" for f in flags]
+    lines += ["", f"## Underwriting checks ({sum(f['fired'] for f in flags)} to review, {sum(not f['fired'] for f in flags)} clear)"]
+    lines += [f"- {'REVIEW' if f['fired'] else 'clear'}: {f['name']} ({f['test']}): {f['observed']}" for f in flags]
     lines += ["", "## Placeholders"] + ([f"- {p}" for p in placeholders] or ["- None"])
     lines += ["", "## Files"] + [f"- {o}" for o in outputs]
     return "\n".join(lines) + "\n"

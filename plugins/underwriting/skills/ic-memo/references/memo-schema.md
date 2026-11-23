@@ -66,10 +66,10 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **Groups.** Every actual line gets one `group`: `potential_rent`, `loss_to_lease`, `vacancy_credit` (vacancy, concessions, non-revenue units, collection loss), `other_income` (other residential income, reimbursements, parking, storage, commercial), `controllable` (repairs, contract services, turnover, landscaping, personnel, marketing, leasing commissions, administrative, security, other), `utilities`, `taxes_insurance` (real estate and other taxes, insurance), `management`. The pro forma uses the same groups, mapped from the model's own lines.
 - **Signs.** Expenses are positive. Revenue deductions (vacancy, concessions, loss to lease) are negative, as the server returns them. Debt service and capex in `hold_cash_flow` are positive amounts.
 - **Percents.** `snapshot` and `unit_mix` percents are percent numbers as the server returns them (`76.4`). Everything else is a ratio (`0.125` = 12.5%).
-- **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It draws the sparklines.
+- **`actuals.monthly`** is the operating statement's `summaryByColumn` for the 12 months of the T12. It is kept for the trend view (not drawn on the one-pager).
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
-- **`commentary`** is the summary line in the footer: 2 or 3 sentences, facts only, every figure as the page shows it.
-- **`analyst_notes`** are optional lines the user gives you; they print under the risk flags. Risk flags themselves are computed, see [risk-rules.md](risk-rules.md).
+- **`commentary`** is the summary in the page head: 2 or 3 sentences, facts only, every figure as the page shows it.
+- **`analyst_notes`** are optional lines the user gives you; they print under the underwriting checks. The checks themselves are computed, see [risk-rules.md](risk-rules.md).
 
 ## Accuracy gate
 

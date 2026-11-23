@@ -1,10 +1,10 @@
-# Risk flags
+# Underwriting checks
 
-The memo's risk flags are fixed rules the renderer runs on the memo's own data. They're the same on every run and in every agent, so two analysts get the same flags for the same deal. The page shows each rule that fired with the observed value and the rule itself; the run summary lists every rule, fired or clear.
+The memo's underwriting checks are fixed rules the renderer runs on the memo's own data. They're the same on every run and in every agent, so two analysts get the same checks for the same deal. On the page, a rule that fires shows a "Review" pill with the observed value and the rule; a rule that passes shows "Clear". The run summary lists every rule.
 
 A rule only runs when its inputs exist (no model, no pro forma rules).
 
-| Rule | Fires when | Inputs |
+| Check | Marked for review when | Inputs |
 |---|---|---|
 | Pro forma revenue well above actual | Y1 EGR is more than 10% above T12 EGR | actuals, proforma |
 | Pro forma NOI well above actual | Y1 NOI is more than 15% above T12 NOI | actuals, proforma |
@@ -19,4 +19,4 @@ A rule only runs when its inputs exist (no model, no pro forma rules).
 
 Thresholds live in `scripts/render_memo.py` (`risk_flags`). Change them there and here together.
 
-Flags state what the data shows. They don't say whether the plan is wrong: a value-add pro forma is supposed to sit above the T12. The analyst explains the gap in the summary or in `analyst_notes`.
+Checks state what the data shows. They don't say whether the plan is wrong: a value-add pro forma is supposed to sit above the T12. The analyst explains the gap in the summary or in `analyst_notes`.

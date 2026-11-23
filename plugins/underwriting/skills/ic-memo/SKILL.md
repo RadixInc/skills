@@ -5,16 +5,14 @@ description: Draft a branded one-page Investment Committee (IC) memo for a Radix
 
 # IC Memo
 
-An IC memo answers one question for the committee: should we bid, and at what price? The one-pager does it in a fixed order:
+An IC memo answers one question for the committee: should we bid, and at what price? The one-pager is led by the client's model and drawn with Radix's own components (page head, metric tiles, report tables, status pills), so it reads like a Radix report:
 
-1. **Headline**: what the deal returns (levered IRR, equity multiple, cash-on-cash, coverage or going-in cap).
-2. **How it's financed**: returns by level, capital stack, sources and uses, and how returns move with exit cap and hold.
-3. **Actual to pro forma**: where the property is today (Radix actuals and rent roll) and where the plan takes it (the client's model).
-4. **What to question**: risk flags computed from the data, and the hold-period cash flow.
+1. **Page head**: the property, its marks (memo type, structure, hold) and a two-sentence summary.
+2. **Deal metrics and NOI over the hold**: levered IRR, multiple, cash-on-cash, price, going-in and exit cap; NOI by year from the model next to the T12 actual.
+3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted.
+4. **Operating statement and underwriting checks**: T12, T3 and T1 actuals from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates; fixed rules that mark what to review.
 
-Radix holds the normalized actuals; the client's model holds the plan. This skill puts them side by side so the gap between them is the story, not a footnote.
-
-The layout is code: `scripts/render_memo.py` draws every block the same way on every run, computes the risk flags, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, write a two-sentence summary, and write `memo.json`.
+The layout is code: `scripts/render_memo.py` draws every block the same way on every run, runs the underwriting checks, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, write a two-sentence summary, and write `memo.json`.
 
 ## Prerequisites
 
@@ -38,7 +36,7 @@ The layout is code: `scripts/render_memo.py` draws every block the same way on e
 The brand profile is plain JSON (`radix.brand_profile/v1`, see [references/brand-profile.md](references/brand-profile.md)) so the same profile works in any agent and in the Radix app.
 
 1. Load it: `get_brand_profile` from the MCP if offered; else a `brand.json` the user attached; else `assets/brand-radix-default.json` (Radix house style).
-2. First run on the default: say the memo uses the Radix house style and list what they can set: logo, primary color (wordmark, debt in the capital stack, heatmap), accent color (equity, pro forma column, sparklines), accent tint (highlighted rows), firm name, disclaimer. Don't block on it.
+2. First run on the default: say the memo uses the Radix house style and list what they can set: logo, primary color (wordmark, NOI bars, base-case cell), accent color, accent tint (pro forma column and base-case row), firm name, disclaimer. Don't block on it.
 3. Format: use `defaults.ic_memo.format` if set; otherwise ask PDF, Word or both, and offer to save the answer as the default (`save_brand_profile`, or an updated `brand.json` for the user to keep).
 
 ## Step 2: The deal
@@ -71,7 +69,7 @@ No model → leave those blocks `null`. The memo still renders the actuals, with
 
 ## Step 5: The summary
 
-Two or three sentences for the footer: what the deal is (units, vintage, type, market, price per unit, structure), and what the plan does (actual NOI to pro forma NOI, hold, exit cap). Use figures exactly as the page prints them (e.g. `$57,748`, `$1.46M`, `5.00%`). If the user gives you their own view or mitigants, add them as `analyst_notes`.
+Two or three sentences for the page head: what the deal is (units, vintage, type, market, price per unit, structure), and what the plan does (actual NOI to pro forma NOI, hold, exit cap). Use figures exactly as the page prints them (e.g. `$57,748`, `$1.46M`, `5.00%`). If the user gives you their own view or mitigants, add them as `analyst_notes`.
 
 ## Step 6: Render and check
 
@@ -85,11 +83,11 @@ python3 scripts/render_memo.py --memo memo.json --brand brand.json --out out --f
 
 ## Output
 
-Deliver the PDF and/or Word file. In the reply: one line on the headline returns, the risk flags that fired (by name), and any placeholders still open. Don't restate the memo.
+Deliver the PDF and/or Word file. In the reply: one line on the headline returns, the underwriting checks marked for review (by name), and any placeholders still open. Don't restate the memo.
 
 ## Without code execution
 
-Pull the same data and write the memo as Markdown in the same order (headline, returns and financing, actual to pro forma, risk flags, cash flow), figures formatted the same way, `[Needs client model]` where data is missing. Check the tie-outs by hand and say that the formatted PDF needs an agent with code execution.
+Pull the same data and write the memo as Markdown in the same order (summary, deal metrics, NOI over the hold, capitalization, sensitivity, operating statement, underwriting checks), figures formatted the same way, `[Needs client model]` where data is missing. Check the tie-outs by hand and say that the formatted PDF needs an agent with code execution.
 
 ## Not built yet
 
