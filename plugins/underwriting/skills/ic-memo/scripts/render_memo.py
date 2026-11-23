@@ -422,8 +422,7 @@ def build_html(memo, brand, der, S):
     com = memo.get("commentary") or {}
     summary_html = ""
     if com.get("text"):
-        pill = ""
-        summary_html = f'<div class="ph__summary">{pill}<p>{esc(com["text"])}</p></div>'
+        summary_html = f'<div class="ph__summary"><p>{esc(com["text"])}</p></div>'
 
     # ----- deal metrics (rx-metric-tile grid)
     lev, unl, ex = ret.get("levered") or {}, ret.get("unlevered") or {}, ret.get("exit") or {}
@@ -618,8 +617,6 @@ p {{ margin:0; }}
 .ph__titlerow {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }}
 .ph__identity {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }}
 .ph__title {{ margin:0; font-size:17pt; font-weight:700; color:#252b37; letter-spacing:-0.01em; }}
-.ph__marks {{ display:flex; gap:6px; }}
-.ph-mark {{ display:inline-flex; align-items:center; padding:1px 9px; border:1px solid #eaeaf0; border-radius:9999px; font-size:6.6pt; font-weight:600; color:#414651; background:#fbfbfe; }}
 .ph__aside {{ text-align:right; }}
 .wordmark {{ font-weight:800; font-size:12pt; letter-spacing:-0.02em; color:{primary}; }}
 .logo {{ max-height:20px; max-width:130px; }}
@@ -638,8 +635,8 @@ p {{ margin:0; }}
 .rx-metric-tile__row {{ display:flex; align-items:baseline; gap:2px; }}
 .rx-metric-tile__value {{ font-size:13.5pt; font-weight:600; line-height:1.25; color:#252b37; }}
 .rx-metric-tile__comparison {{ font-size:6.6pt; font-weight:500; color:#717680; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
-.rxt__legend {{ display:flex; gap:6px; margin-bottom:2px; }}
-.rxt__pill {{ display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border:1px solid #eaeaf0; border-radius:9999px; font-size:6.4pt; font-weight:600; color:#414651; }}
+.rxt__legend {{ display:flex; gap:14px; margin-bottom:2px; }}
+.rxt__pill {{ display:inline-flex; align-items:center; gap:5px; font-size:6.4pt; font-weight:600; color:#414651; }}
 .rxt__swatch {{ width:7px; height:7px; border-radius:2px; display:inline-block; }}
 .chart {{ display:block; margin:2px 0 6px; }}
 .chart .cv {{ font-size:8.4px; font-weight:600; fill:#252b37; }}
@@ -668,10 +665,6 @@ p {{ margin:0; }}
 .rx-detail-list__row {{ display:flex; justify-content:space-between; gap:8px; line-height:1.5; }}
 .rx-detail-list__label {{ font-size:6.8pt; font-weight:500; color:#414651; }}
 .rx-chart-note {{ margin-top:4px; font-size:6.2pt; line-height:1.45; color:#717680; }}
-.rx-status-pill {{ display:inline-flex; align-items:center; flex:none; padding:0 7px; border-radius:9999px; border:1px solid transparent; font-size:6pt; font-weight:600; line-height:13px; white-space:nowrap; }}
-.rx-status-pill--warning {{ color:#b54708; background:#fffaeb; }}
-.rx-status-pill--success {{ color:#067647; background:#ecfdf3; }}
-.rx-status-pill--brand {{ color:#1a62b2; background:#eff4fe; }}
 .rx-alert {{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid #fedf89; background:#fffaeb; border-radius:8px; color:#414651; }}
 .rx-alert b {{ font-size:6.4pt; font-weight:700; color:#b54708; }}
 .foot {{ display:flex; justify-content:space-between; gap:16px; margin-top:9px; font-size:5.8pt; color:#a4a7ae; }}
@@ -682,11 +675,11 @@ p {{ margin:0; }}
   <div class="ph__titlerow">
     <div>
       <div class="ph__identity"><h1 class="ph__title">{esc(deal.get('name'))}</h1>
-        <div class="ph__marks">{''.join(f'<span class="ph-mark">{esc(m)}</span>' for m in marks)}</div></div>
+</div>
       <div class="ph__facts">{esc(' · '.join(facts))}</div>
       {f'<div class="ph__mix">{mix_line}</div>' if mix_line else ''}
     </div>
-    <div class="ph__aside">{brand_mark}<div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
+    <div class="ph__aside">{brand_mark}<div class="ph__date">{esc(' · '.join(marks))}</div><div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
   </div>
   {summary_html}
 </header>
