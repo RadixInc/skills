@@ -64,7 +64,8 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
                   "values": [[0.125]], "format": "pct", "base": {"row": "7 yrs", "col": "5.00%"}},
   "hold_cash_flow": {"years": ["Y1"], "egr": [0], "opex": [0], "noi": [0], "debt_service": [0], "capex": [0],
                      "net_cash_flow": [0], "coc": [0.087], "dscr": null},
-  "commentary": {"status": "draft", "text": "Two or three sentences."}
+  "commentary": {"status": "draft", "depth": "business_plan", "text": "100 to 150 words.",
+                 "sources": [{"point": "Value-add plan: lease-up to 94%", "source": "Client model, Input!F40", "kind": "model"}]}
 }
 ```
 
@@ -79,7 +80,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **`waterfall_option`**: `auto` (show the waterfall when the model has one; the default), `always` (show a placeholder when it doesn't) or `never`. Take it from the brand profile's `defaults.ic_memo.waterfall`.
 - **`waterfall`**: tiers with LP and GP splits, and returns by partner (`role` is `lp` or `gp`). Leave it `null` when the model has no waterfall. Every figure comes from the model's waterfall; never compute a split or promote.
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
-- **`commentary`** is the summary in the page head: 2 or 3 sentences, facts only, every figure as the page shows it.
+- **`commentary`** is the investment overview in the page head (see [investment-overview.md](investment-overview.md)): `text` of about 100 to 150 words with every figure as the page shows it; `status` `draft` or `approved` (keep an approved overview on reruns); `depth` `business_plan`, `stabilized` or `unknown`; `sources` lists where each point came from, `kind` one of `documented`, `model`, `third_party`, `inference`. Sources print in the run summary, never on the memo.
 - **`proforma.notes`** are the analyst's notes by group key (any of the eight groups, plus `egr`, `opex`, `noi`, `rent`, `occupancy`, `cap_rate`). They print in a Notes column on the operating statement, which only appears when a note exists. Never write them yourself. Pre-send checks are computed and never printed, see [pre-send-checks.md](pre-send-checks.md).
 
 ## Accuracy gate

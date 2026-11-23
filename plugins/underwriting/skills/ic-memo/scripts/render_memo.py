@@ -357,7 +357,7 @@ def run_gate(memo, der, shown):
     if any(memo.get(k) for k in ("proforma", "returns", "capital_stack", "sources_uses", "sensitivity", "hold_cash_flow")):
         check("Client model file is named", bool((src.get("client_model") or {}).get("file")))
 
-    for name, text in [("Summary", (memo.get("commentary") or {}).get("text") or "")] + \
+    for name, text in [("Investment overview", (memo.get("commentary") or {}).get("text") or "")] + \
                       [(f"Note on {k}", n) for k, n in ((memo.get("proforma") or {}).get("notes") or {}).items() if n]:
         unmatched = []
         for tok in NUM_TOKEN.findall(text):
@@ -376,7 +376,7 @@ def run_gate(memo, der, shown):
         if not b or (key == "deal_terms" and not is_num(b.get("price"))):
             placeholders.append(f"{label}. Source: client model.")
     if not (memo.get("commentary") or {}).get("text"):
-        placeholders.append("Summary.")
+        placeholders.append("Investment overview.")
     failed = [c for c in checks if not c["ok"]]
     status = "fail" if failed else ("pass_with_placeholders" if placeholders else "pass")
     return status, checks, placeholders
@@ -469,7 +469,8 @@ def build_html(memo, brand, der, S):
     com = memo.get("commentary") or {}
     summary_html = ""
     if com.get("text"):
-        summary_html = f'<div class="ph__summary"><p>{esc(com["text"])}</p></div>'
+        summary_html = (f'<div class="ph__summary"><p class="ph__summary-label">Investment overview</p>'
+                        f'<p>{esc(com["text"])}</p></div>')
 
     # ----- deal metrics (rx-metric-tile grid)
     lev, unl, ex = ret.get("levered") or {}, ret.get("unlevered") or {}, ret.get("exit") or {}
@@ -728,7 +729,8 @@ p {{ margin:0; }}
 .ph__date {{ font-size:6.6pt; color:#717680; font-weight:500; margin-top:2px; }}
 .ph__facts {{ margin-top:5px; font-size:7pt; color:#414651; font-weight:500; }}
 .ph__mix {{ margin-top:1px; font-size:7pt; color:#717680; font-weight:500; }}
-.ph__summary {{ display:flex; gap:8px; align-items:flex-start; margin-top:9px; padding-top:9px; border-top:1px solid #eaeaf0; }}
+.ph__summary {{ margin-top:9px; padding-top:9px; border-top:1px solid #eaeaf0; }}
+.ph__summary-label {{ font-size:6.5pt !important; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#717680 !important; margin-bottom:3px; }}
 .ph__summary p {{ font-size:7.8pt; line-height:1.5; color:#181d27; }}
 .grid {{ display:grid; gap:10px; margin-top:10px; }}
 .g-a {{ grid-template-columns: 1fr 1.32fr; }}
@@ -912,7 +914,7 @@ def write_docx(memo, brand, der, docx_path):
 
     com = memo.get("commentary") or {}
     if com.get("text"):
-        heading("Summary"); doc.add_paragraph(com["text"])
+        heading("Investment overview"); doc.add_paragraph(com["text"])
 
     if ret:
         heading("Returns")
@@ -1045,6 +1047,13 @@ def run_summary(memo, status, checks, placeholders, flags, outputs):
     lines += [f"- {'PASS' if c['ok'] else 'FAIL'}: {c['check']}" + (f" ({c['detail']})" if c["detail"] and not c["ok"] else "") for c in checks]
     lines += ["", f"## Pre-send checks, not printed on the memo ({sum(f['fired'] for f in flags)} to look at, {sum(not f['fired'] for f in flags)} clear)"]
     lines += [f"- {'REVIEW' if f['fired'] else 'clear'}: {f['name']} ({f['test']}): {f['observed']}" for f in flags]
+    com = memo.get("commentary") or {}
+    if com.get("text"):
+        words = len(com["text"].split())
+        lines += ["", f"## Investment overview ({com.get('status', 'draft')}, {words} words{', depth: ' + com['depth'] if com.get('depth') else ''})"]
+        if not 60 <= words <= 170:
+            lines.append(f"- Length: {words} words; aim for about 100 to 150.")
+        lines += [f"- {s_.get('point', '')}: {s_.get('source', '')} ({s_.get('kind', 'unspecified')})" for s_ in com.get("sources") or []] or ["- No sources recorded."]
     lines += ["", "## Placeholders"] + ([f"- {p}" for p in placeholders] or ["- None"])
     lines += ["", "## Files"] + [f"- {o}" for o in outputs]
     return "\n".join(lines) + "\n"

@@ -25,7 +25,7 @@
     "display_name": "Radix",
     "contact_lines": []
   },
-  "disclaimer": "Prepared for internal investment committee review. Actuals and the rent roll are from Radix; the pro forma, returns and capitalization are from the client's model. The summary is a draft for the analyst to edit.",
+  "disclaimer": "Prepared for internal investment committee review. Actuals and the rent roll are from Radix; the pro forma, returns and capitalization are from the client's model.",
   "defaults": {
     "ic_memo": {
       "format": null,
