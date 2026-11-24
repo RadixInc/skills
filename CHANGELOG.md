@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+## 1.0.3
+
 - `create-deal-from-docs`: new skill. Creates a deal from an OM, flyer, broker email, property website link, or a rent roll and T12 alone, uploads any rent roll or T12 to the new deal in the same run, and reports each field with its source. Asks once whether it may look up missing details on the web (property website, management company, broker contact, asset quality, amenities, year built), using only the property name and address. Never writes to deal comments or fills the buyer's own pricing and returns fields.
 - `radix-underwriting` README: lists the new skill and describes the deal writes, uploads and optional web lookup.
 - Release workflow: `<plugin>-latest` is now the ref the Claude plugin directory tracks. The workflow only moves it forward, fails if the move didn't land, and writes the result to the job summary. `docs/releasing.md` covers the directory webhook and how to check a release reached the directory.
+
 ## 1.0.2
 
 - `radix-underwriting`: added `documentationUrl` (radix.com/mcp-underwriting) and `termsOfServiceUrl` to `plugin.json` for the directory listing, and linked documentation, privacy policy and terms from the plugin README.
