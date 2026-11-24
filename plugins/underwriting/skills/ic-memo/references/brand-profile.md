@@ -16,7 +16,7 @@ One JSON document per account (optionally per user) that every Radix deal docume
 | `colors.primary` | hex | Header band and section headings |
 | `colors.accent` | hex | Rules, markers, highlights |
 | `colors.accent_tint` | hex | Snapshot tiles, NOI row, grid headers. Keep it light |
-| `fonts.heading`, `fonts.body` | string | From the approved list. v1: `Manrope` |
+| `fonts.heading`, `fonts.body` | string | From the approved list. v1: `Manrope`. PowerPoint outputs (data blocks, OM) use these only when they are Arial, Calibri, Cambria or Georgia, since the file opens on other machines; otherwise headings use Georgia and body text Arial |
 | `firm.display_name` | string | Used in headers and file names |
 | `firm.contact_lines` | string[] | Broker team for the OM and BOV contact pages, one line each ("Jane Doe, Senior Managing Director · jane@firm.com · 602 555 0100") |
 | `disclaimer` | string | Client-owned text for the IC memo footer, printed verbatim |
@@ -38,9 +38,9 @@ When asking for brand colors, list them by role so the user knows where each app
 
 | Role | IC memo | Data blocks | OM |
 |---|---|---|---|
-| **Primary** | Wordmark, NOI bars, base-case cell | Main chart bars, snapshot figures, the subject property in comparison charts | Cover and section divider background, highlight markers, plus everything the data blocks use it for |
-| **Accent** | Heading markers and rules | Second chart series (in-place rent, revenue) | Title rule on every slide, plus the data blocks' uses |
-| **Accent tint** | Pro forma column, highlighted rows | NOI rows, the subject property's rows in the comps table (keep it very light) | Offering terms panel, plus the data blocks' uses |
+| **Primary** | Wordmark, NOI bars, base-case cell | Main chart series and the subject property in comparison charts | Section numbers, highlight numbers, the "Offering" label, plus the data blocks' uses |
+| **Accent** | Heading markers and rules | Second chart series, the short rule under each snapshot figure | The data blocks' uses |
+| **Accent tint** | Pro forma column, highlighted rows | The NOI row (keep it very light) | The data blocks' uses |
 
 The users can give colors as hex codes in chat; the agent writes them into `brand.json`.
 

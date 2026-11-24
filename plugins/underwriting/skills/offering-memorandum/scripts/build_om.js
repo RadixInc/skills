@@ -34,8 +34,9 @@ const om = JSON.parse(fs.readFileSync(omPath, "utf8"));
 const brand = JSON.parse(fs.readFileSync(brandPath, "utf8"));
 if (om.schema !== "radix.om/v2") { console.error(JSON.stringify({ status: "error", error: "om.json must use schema radix.om/v2" })); process.exit(1); }
 
+
 // The OM recipe: which blocks go in which section, in order. The property snapshot block is left out
-// because the executive summary and property overview already carry those facts.
+// because the cover, executive summary and property overview already carry those facts.
 const RECIPE = [
   { section: "The property", blocks: ["unit_mix", "rents_vs_market"] },
   { section: "Financial analysis", blocks: ["operating_history", "operating_statement", "proforma_cash_flow", "proforma_assumptions"] },
@@ -46,60 +47,71 @@ const sectionOf = {}; for (const r of RECIPE) for (const b of r.blocks) sectionO
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5 in
 
-// Block slides in the OM get the OM's chrome: a title rule and a page number. Everything else about a block is unchanged.
-const B = createBlocks({
-  pres, data: om, brand,
-  frame: { master: "OM_CONTENT", section: (id) => sectionOf[id], sourceWidth: 10.4, decorate: () => {} },
-});
-const { PRIMARY, ACCENT, TINT, INK, STRONG, MUTED, FAINT, RULE, CANVAS, FONT, W, X0, CW } = B.style;
+// Block slides in the OM get the OM's running footer and page number. Everything else about a block is unchanged.
+const B = createBlocks({ pres, data: om, brand, frame: { master: "OM_CONTENT", section: (id) => sectionOf[id] } });
+const { PRIMARY, ACCENT, INK, MUTED, FAINT, HUSH, RULE, CANVAS, PAGE, FONT, DISPLAY, W, X0, CW } = B.style;
 const { isNum, money, compact, pct, int, dateLabel } = B.fmt;
 const { deal, snap, units, um, act, rrDate } = B.facts;
-const T = B.T, table = B.table;
-const WARN = "B54708", WARN_BG = "FFFAEB";
+const T = B.T, table = B.table, card = B.card;
+const WARN = "B54708";
 const firm = (brand.firm || {}).display_name || (brand.logo || {}).wordmark_text || "";
 pres.title = `${deal.name || "Property"} · Offering Memorandum`;
 pres.company = firm;
-pres.theme = { headFontFace: FONT, bodyFontFace: FONT };
+pres.theme = { headFontFace: DISPLAY, bodyFontFace: FONT };
 
 // ---------- masters ----------
-const titlePh = { placeholder: { options: { name: "title", type: "title", x: X0, y: 0.4, w: CW, h: 0.6, fontFace: FONT, fontSize: 24, bold: true, color: STRONG, align: "left", valign: "top", margin: 0 }, text: "" } };
+const titlePh = { placeholder: { options: { name: "title", type: "title", x: X0, y: 0.68, w: CW, h: 0.7, fontFace: DISPLAY, fontSize: 30, bold: false, color: INK, align: "left", valign: "top", margin: 0 }, text: "" } };
+const running = `${(deal.name || "").toUpperCase()}  ·  OFFERING MEMORANDUM`;
 pres.defineSlideMaster({
   title: "OM_CONTENT",
-  background: { color: "FFFFFF" },
+  background: { color: PAGE },
   objects: [
     titlePh,
-    { line: { x: X0, y: 1.33, w: CW, h: 0, line: { color: ACCENT, width: 1.25 } } },
-    { text: { text: `${deal.name || ""}${firm ? `  ·  ${firm}` : ""}`, options: { x: W - X0 - 2.6, y: 6.85, w: 2.2, h: 0.3, fontFace: FONT, fontSize: 9, color: FAINT, align: "right", margin: 0 } } },
+    { line: { x: X0, y: 7.08, w: CW, h: 0, line: { color: RULE, width: 0.5 } } },
+    { text: { text: running, options: { x: X0, y: 7.12, w: 8, h: 0.25, fontFace: FONT, fontSize: 7.5, bold: true, charSpacing: 1.5, color: FAINT, margin: 0 } } },
   ],
-  slideNumber: { x: W - X0 - 0.35, y: 6.85, w: 0.35, h: 0.3, fontFace: FONT, fontSize: 9, color: FAINT, align: "right" },
+  slideNumber: { x: W - X0 - 0.6, y: 7.12, w: 0.6, h: 0.25, fontFace: FONT, fontSize: 8, color: FAINT, align: "right" },
 });
-pres.defineSlideMaster({ title: "OM_COVER", background: { color: PRIMARY }, objects: [] });
+pres.defineSlideMaster({ title: "OM_COVER", background: { color: PAGE }, objects: [] });
 pres.defineSlideMaster({
-  title: "OM_DIVIDER", background: { color: PRIMARY },
-  objects: [{ line: { x: X0, y: 3.95, w: 1.2, h: 0, line: { color: "FFFFFF", width: 2 } } }],
-  slideNumber: { x: W - X0 - 0.35, y: 6.85, w: 0.35, h: 0.3, fontFace: FONT, fontSize: 9, color: "FFFFFF", align: "right" },
+  title: "OM_DIVIDER", background: { color: PAGE },
+  objects: [{ text: { text: running, options: { x: X0, y: 7.12, w: 8, h: 0.25, fontFace: FONT, fontSize: 7.5, bold: true, charSpacing: 1.5, color: FAINT, margin: 0 } } }],
+  slideNumber: { x: W - X0 - 0.6, y: 7.12, w: 0.6, h: 0.25, fontFace: FONT, fontSize: 8, color: FAINT, align: "right" },
 });
 
 const placeholders = [];
+const eyebrow = (s, text, x, y, w, color) => T(s, String(text).toUpperCase(), { x, y, w, h: 0.25, fontSize: 9, bold: true, charSpacing: 1.5, color: color || FAINT });
 const content = (title, section, subject) => {
   const s = pres.addSlide({ masterName: "OM_CONTENT", sectionTitle: section });
   s.addText(title, { placeholder: "title", align: "left" });
-  if (subject) T(s, subject, { x: X0, y: 0.98, w: CW, h: 0.3, fontSize: 12, color: FAINT });
+  eyebrow(s, [deal.name, subject].filter(Boolean).join(" · "), X0, 0.38, CW);
   return s;
 };
 const sections = new Set();
 const section = (name) => { if (!sections.has(name)) { sections.add(name); pres.addSection({ title: name }); } return name; };
-const divider = (name, n) => {
+// Section break: a large numeral in the brand color, the section name, and what's inside it.
+const divider = (name, n, inside) => {
   const s = pres.addSlide({ masterName: "OM_DIVIDER", sectionTitle: section(name) });
-  T(s, String(n).padStart(2, "0"), { x: X0, y: 2.6, w: 3, h: 0.9, fontSize: 40, bold: true, color: "DBE6FC" });
-  T(s, name, { x: X0, y: 4.15, w: 10, h: 0.9, fontSize: 40, bold: true, color: "FFFFFF" });
+  T(s, String(n).padStart(2, "0"), { x: X0, y: 1.2, w: 4, h: 1.9, fontSize: 110, fontFace: DISPLAY, color: PRIMARY, valign: "bottom" });
+  T(s, name, { x: X0, y: 3.35, w: 6.4, h: 1.0, fontSize: 48, fontFace: DISPLAY, color: INK });
+  const lx = 7.9, lw = W - X0 - lx;
+  eyebrow(s, "In this section", lx, 1.75, lw);
+  inside.forEach((t, i) => {
+    const y = 2.15 + i * 0.55;
+    s.addShape(pres.shapes.LINE, { x: lx, y, w: lw, h: 0, line: { color: RULE, width: 0.5 } });
+    T(s, String(i + 1).padStart(2, "0"), { x: lx, y: y + 0.13, w: 0.5, h: 0.3, fontSize: 10, color: FAINT });
+    T(s, t, { x: lx + 0.55, y: y + 0.1, w: lw - 0.55, h: 0.35, fontSize: 14, color: INK });
+  });
 };
+// Missing broker input: a quiet dashed card with a "To add" label, so it is plain what still needs filling.
 function placeholderBox(s, x, y, w, h, title, body) {
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.08, fill: { color: WARN_BG }, line: { color: "FEDF89", width: 1, dashType: "dash" } });
-  T(s, [{ text: title, options: { bold: true, color: WARN, fontSize: 16, align: "center", breakLine: true } }, { text: body, options: { color: MUTED, fontSize: 13, align: "center" } }],
-    { x: x + 0.5, y: y + 0.25, w: w - 1.0, h: h - 0.5, valign: "middle", align: "center", paraSpaceAfter: 6 });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.12, fill: { color: CANVAS }, line: { color: HUSH, width: 0.75, dashType: "dash" } });
+  eyebrow(s, "To add", x + 0.35, y + h / 2 - 0.75, w - 0.7, WARN);
+  T(s, title, { x: x + 0.35, y: y + h / 2 - 0.45, w: w - 0.7, h: 0.5, fontSize: 20, fontFace: DISPLAY, color: INK });
+  T(s, body, { x: x + 0.35, y: y + h / 2 + 0.1, w: Math.min(w - 0.7, 6), h: 0.7, fontSize: 11, color: MUTED });
 }
-const source = (s, text) => T(s, text, { x: X0, y: 6.8, w: 10.4, h: 0.4, fontSize: 10, color: FAINT });
+const source = (s, text) => T(s, text, { x: X0, y: 6.78, w: CW, h: 0.3, fontSize: 8.5, color: FAINT });
+const hair = (s, x, y, w) => s.addShape(pres.shapes.LINE, { x, y, w, h: 0, line: { color: RULE, width: 0.5 } });
 
 // ---------- plan and gate ----------
 const wanted = om.blocks && om.blocks.length ? om.blocks : RECIPE.flatMap((r) => r.blocks);
@@ -108,117 +120,126 @@ try { plan = B.plan(wanted.filter((b) => sectionOf[b])); } catch (e) { console.e
 const { rendered, skipped } = plan;
 const checks = B.gate(rendered);
 const check = (name, ok, detail = "") => checks.push({ check: name, ok: !!ok, detail });
+const titleOf = (b) => (b === "operating_statement" && B.facts.pf ? "Actuals to pro forma" : createBlocks.BLOCK_TITLES[b]);
+const blocksIn = (name) => rendered.filter((b) => sectionOf[b] === name).map(titleOf);
+const t12noi = (act.noi || {}).T12;
 
 // ===== 1. Cover
 const photos = om.photos || [];
 {
   const s = pres.addSlide({ masterName: "OM_COVER", sectionTitle: section("Cover") });
-  T(s, "OFFERING MEMORANDUM", { x: X0, y: 0.8, w: 6, h: 0.35, fontSize: 12, bold: true, color: "FFFFFF", charSpacing: 3 });
-  T(s, deal.name || "", { x: X0, y: 2.1, w: 6.4, h: 1.5, fontSize: 44, bold: true, color: "FFFFFF", valign: "bottom" });
-  T(s, deal.address || "", { x: X0, y: 3.7, w: 6.4, h: 0.4, fontSize: 16, color: "FFFFFF" });
-  const facts = [isNum(units) ? `${int(units)} units` : null, deal.year_built ? `Built ${deal.year_built}` : null, deal.building_type || null].filter(Boolean).join("  ·  ");
-  T(s, facts, { x: X0, y: 4.15, w: 6.4, h: 0.4, fontSize: 14, color: "DBE6FC" });
-  if ((brand.logo || {}).data_uri) s.addImage({ data: brand.logo.data_uri, x: X0, y: 6.2, w: 2.2, h: 0.7, sizing: { type: "contain", w: 2.2, h: 0.7 }, altText: `${firm} logo` });
-  else T(s, firm, { x: X0, y: 6.4, w: 5, h: 0.45, fontSize: 18, bold: true, color: "FFFFFF" });
+  if ((brand.logo || {}).data_uri) s.addImage({ data: brand.logo.data_uri, x: X0, y: 0.5, w: 1.8, h: 0.5, sizing: { type: "contain", w: 1.8, h: 0.5 }, altText: `${firm} logo` });
+  else T(s, firm, { x: X0, y: 0.55, w: 5, h: 0.4, fontSize: 15, bold: true, color: INK });
+  eyebrow(s, "Offering memorandum", X0, 1.95, 6.2, PRIMARY);
+  T(s, deal.name || "", { x: X0, y: 2.3, w: 6.4, h: 1.9, fontSize: 54, fontFace: DISPLAY, color: INK, valign: "top", lineSpacingMultiple: 0.95 });
+  T(s, [deal.address, deal.market].filter(Boolean).join("  ·  "), { x: X0, y: 4.2, w: 6.4, h: 0.4, fontSize: 14, color: MUTED });
+  // Stat strip
+  const stats = [["Units", int(units)], ["Built", deal.year_built ? String(deal.year_built) : "-"], ["Occupancy", pct(snap.occupancy_pct)], ["T12 NOI", compact(t12noi)]];
+  const sw = 6.4 / stats.length;
+  hair(s, X0, 5.55, 6.4);
+  stats.forEach(([label, val], i) => {
+    const x = X0 + i * sw;
+    if (i) s.addShape(pres.shapes.LINE, { x: x - 0.12, y: 5.75, w: 0, h: 0.95, line: { color: RULE, width: 0.5 } });
+    T(s, val, { x, y: 5.7, w: sw - 0.2, h: 0.55, fontSize: 24, fontFace: DISPLAY, color: INK });
+    eyebrow(s, label, x, 6.3, sw - 0.2);
+  });
+  const px = 7.45, py = 0.45, pw = W - 0.45 - px, ph = 7.5 - 0.9;
   if (photos.length) {
-    s.addImage({ path: photos[0].path, x: 7.4, y: 0, w: W - 7.4, h: 7.5, sizing: { type: "cover", w: W - 7.4, h: 7.5 }, altText: photos[0].caption || "Property photo" });
+    s.addImage({ path: photos[0].path, x: px, y: py, w: pw, h: ph, sizing: { type: "cover", w: pw, h: ph }, altText: photos[0].caption || "Property photo" });
   } else {
-    s.addShape(pres.shapes.RECTANGLE, { x: 7.4, y: 0, w: W - 7.4, h: 7.5, fill: { color: "FFFFFF", transparency: 88 }, line: { type: "none" } });
-    T(s, "Property photo\nAdd the hero image here", { x: 7.4, y: 3.2, w: W - 7.4, h: 1.0, fontSize: 14, color: "DBE6FC", align: "center", valign: "middle" });
+    placeholderBox(s, px, py, pw, ph, "Cover photo", "Add the hero image of the property.");
     placeholders.push("Cover photo.");
   }
 }
 
-// ===== 2. Executive summary: deal at a glance
+// ===== 2. Executive summary
 {
-  const s = content("Executive summary", section("Executive summary"), [deal.address, rrDate ? `Rent roll as of ${rrDate}` : null].filter(Boolean).join(" · "));
-  T(s, om.summary || "", { x: X0, y: 1.55, w: 7.3, h: 1.2, fontSize: 14, color: INK, paraSpaceAfter: 6 });
+  const s = content("Executive summary", section("Executive summary"), rrDate ? `Rent roll as of ${rrDate}` : null);
+  const lw = 7.1;
+  T(s, om.summary || "", { x: X0, y: 1.6, w: lw, h: 1.35, fontSize: 17, fontFace: DISPLAY, color: INK, lineSpacingMultiple: 1.1 });
   if (!om.summary) placeholders.push("Executive summary text.");
-  let y = 2.9;
-  (om.highlights || []).slice(0, 4).forEach((h, i) => {
-    s.addShape(pres.shapes.OVAL, { x: X0, y: y + 0.02, w: 0.34, h: 0.34, fill: { color: PRIMARY }, line: { type: "none" } });
-    T(s, String(i + 1), { x: X0, y: y + 0.02, w: 0.34, h: 0.34, fontSize: 11, bold: true, color: "FFFFFF", align: "center", valign: "middle" });
-    T(s, [{ text: h.title, options: { bold: true, fontSize: 14, color: STRONG, breakLine: true } }, { text: h.text, options: { fontSize: 12, color: MUTED } }],
-      { x: X0 + 0.5, y, w: 6.8, h: 0.85 });
-    y += 0.92;
+  const hl = (om.highlights || []).slice(0, 4);
+  eyebrow(s, "Investment highlights", X0, 3.1, lw);
+  const rh = Math.min(0.85, 3.25 / Math.max(hl.length, 1));
+  hl.forEach((h, i) => {
+    const y = 3.42 + i * rh;
+    hair(s, X0, y, lw);
+    T(s, String(i + 1).padStart(2, "0"), { x: X0, y: y + 0.1, w: 0.6, h: 0.4, fontSize: 18, fontFace: DISPLAY, color: PRIMARY });
+    T(s, [{ text: h.title, options: { bold: true, fontSize: 12.5, color: INK, breakLine: true } }, { text: h.text, options: { fontSize: 11, color: MUTED } }],
+      { x: X0 + 0.75, y: y + 0.1, w: lw - 0.75, h: rh - 0.12 });
   });
-  if (!(om.highlights || []).length) placeholders.push("Investment highlights.");
-  // offering terms
-  const ox = 8.4, ow = W - X0 - ox, off = om.offering || {};
+  if (!hl.length) placeholders.push("Investment highlights.");
+  // Offering terms card
+  const ox = 8.15, ow = W - X0 - ox, off = om.offering || {};
   const terms = [["Price", isNum(off.price) ? money(off.price) : off.price_label || "Unpriced"], ["Price per unit", isNum(off.price) && units ? money(off.price / units) : null],
     ["Offers due", off.offers_due ? dateLabel(off.offers_due) : "To be announced"]].filter((r) => r[1]).concat((off.terms || []).map((t) => [t.label, t.value]));
   if (!isNum(off.price) && !off.price_label) placeholders.push("Offering price, or 'Unpriced'.");
   if (!off.offers_due) placeholders.push("Offer due date.");
-  const ph = 0.75 + 0.36 * terms.length;
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: ox, y: 1.55, w: ow, h: ph, rectRadius: 0.08, fill: { color: TINT }, line: { color: RULE, width: 0.75 } });
-  T(s, "Offering", { x: ox + 0.25, y: 1.7, w: ow - 0.5, h: 0.35, fontSize: 13, bold: true, color: STRONG });
+  const ch = 0.65 + 0.42 * terms.length;
+  card(s, ox, 1.6, ow, ch);
+  eyebrow(s, "Offering", ox + 0.3, 1.82, ow - 0.6, PRIMARY);
   terms.forEach(([a, b], i) => {
-    T(s, a, { x: ox + 0.25, y: 2.15 + i * 0.36, w: 1.6, h: 0.3, fontSize: 12, color: FAINT });
-    T(s, String(b), { x: ox + 1.9, y: 2.15 + i * 0.36, w: ow - 2.15, h: 0.3, fontSize: 12, bold: true, color: INK, align: "right" });
+    const y = 2.17 + i * 0.42;
+    if (i) hair(s, ox + 0.3, y - 0.04, ow - 0.6);
+    T(s, a, { x: ox + 0.3, y: y + 0.04, w: 1.7, h: 0.3, fontSize: 11, color: MUTED });
+    T(s, String(b), { x: ox + 2.0, y: y + 0.04, w: ow - 2.3, h: 0.3, fontSize: 11.5, bold: true, color: INK, align: "right" });
   });
-  const t12noi = (act.noi || {}).T12;
+  // Key figures
   const stats = [["Units", int(units)], ["Occupancy", pct(snap.occupancy_pct)], ["In-place as % of market", pct(snap.pct_of_market)], ["T12 NOI", compact(t12noi)]];
-  const sy0 = 1.55 + ph + 0.25, th = Math.min(1.2, (6.6 - sy0 - 0.15) / 2);
+  const sy0 = 1.6 + ch + 0.2, gap = 0.2, sw = (ow - gap) / 2, th = Math.min(1.45, (6.6 - sy0 - gap) / 2);
   stats.forEach(([label, val], i) => {
-    const sw = (ow - 0.15) / 2, sx = ox + (i % 2) * (sw + 0.15), sy = sy0 + Math.floor(i / 2) * (th + 0.15);
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: sx, y: sy, w: sw, h: th, rectRadius: 0.08, fill: { color: "FFFFFF" }, line: { color: RULE, width: 0.75 } });
-    T(s, label, { x: sx + 0.18, y: sy + 0.14, w: sw - 0.36, h: 0.3, fontSize: 11, color: MUTED });
-    T(s, val, { x: sx + 0.18, y: sy + 0.45, w: sw - 0.36, h: th - 0.55, fontSize: 24, bold: true, color: PRIMARY });
+    const sx = ox + (i % 2) * (sw + gap), sy = sy0 + Math.floor(i / 2) * (th + gap);
+    card(s, sx, sy, sw, th);
+    T(s, val, { x: sx + 0.25, y: sy + 0.15, w: sw - 0.5, h: th - 0.6, fontSize: 28, fontFace: DISPLAY, color: INK, valign: "bottom" });
+    T(s, label, { x: sx + 0.25, y: sy + th - 0.42, w: sw - 0.5, h: 0.3, fontSize: 10, color: MUTED });
   });
   source(s, `Facts from the Radix deal record, rent roll as of ${rrDate} and operating statement. Summary and highlights drafted from those figures; edit before sending.`);
   s.addNotes("The summary and highlights are drafted from Radix data. Edit them before sending.");
 }
 
-// ===== 3. Property section
-divider("The property", 1);
+// ===== 3. The property
+divider("The property", 1, ["Property overview", "Property photos"].concat(blocksIn("The property")));
 {
   const s = content("Property overview", section("The property"), deal.address);
   const rows = [["Address", deal.address], ["Market", deal.market], ["Year built", deal.year_built ? String(deal.year_built) : null], ["Building type", deal.building_type],
     ["Units", isNum(units) ? int(units) : null], ["Rentable SF", isNum(deal.total_sf) ? int(deal.total_sf) : null], ["Average unit size", isNum((um.total || {}).avg_sf) ? `${int(um.total.avg_sf)} SF` : null],
     ["Occupancy", isNum(snap.occupancy_pct) ? `${pct(snap.occupancy_pct)} on the ${rrDate} rent roll` : null]].concat((om.property_facts || []).map((f) => [f.label, f.value])).filter((r) => r[1]);
-  let y = 1.6;
-  const rh = Math.min(0.52, 4.9 / Math.max(rows.length, 1));
-  for (const [a, b] of rows) {
-    T(s, a, { x: X0, y, w: 2.1, h: 0.4, fontSize: 13, color: FAINT });
-    T(s, String(b), { x: X0 + 2.2, y, w: 4.3, h: 0.4, fontSize: 13, bold: true, color: INK });
-    s.addShape(pres.shapes.LINE, { x: X0, y: y + rh - 0.08, w: 6.5, h: 0, line: { color: RULE, width: 0.75 } });
-    y += rh;
-  }
-  const am = om.amenities || {};
-  const amenText = [["Community", am.community], ["Unit", am.unit]].filter(([, v]) => (v || []).length);
-  if (amenText.length) {
-    let ay = 1.6;
-    const ax = 7.5, aw = W - X0 - ax;
-    const mapH = om.map && om.map.path ? 2.6 : 0;
-    if (mapH) s.addImage({ path: om.map.path, x: ax, y: ay, w: aw, h: mapH, sizing: { type: "contain", w: aw, h: mapH }, altText: "Location map" });
-    ay += mapH ? mapH + 0.2 : 0;
-    for (const [h, list] of amenText) {
-      T(s, h + " amenities", { x: ax, y: ay, w: aw, h: 0.35, fontSize: 13, bold: true, color: STRONG });
-      T(s, list.map((t) => ({ text: t, options: { bullet: { indent: 14 }, breakLine: true } })), { x: ax, y: ay + 0.4, w: aw, h: 0.28 * list.length, fontSize: 11, color: MUTED });
-      ay += 0.5 + 0.28 * list.length;
+  const lw = 6.6, rh = Math.min(0.55, 4.95 / Math.max(rows.length, 1));
+  rows.forEach(([a, b], i) => {
+    const y = 1.6 + i * rh;
+    hair(s, X0, y, lw);
+    T(s, a, { x: X0, y: y + 0.13, w: 2.1, h: 0.3, fontSize: 11, color: MUTED });
+    T(s, String(b), { x: X0 + 2.2, y: y + 0.11, w: lw - 2.2, h: 0.35, fontSize: 13, color: INK });
+  });
+  hair(s, X0, 1.6 + rows.length * rh, lw);
+  const ax = 7.75, aw = W - X0 - ax, am = om.amenities || {};
+  const lists = [["Community amenities", am.community], ["Unit amenities", am.unit]].filter(([, v]) => (v || []).length);
+  let ay = 1.6;
+  if (lists.length) {
+    const ah = 0.45 + lists.reduce((a, [, v]) => a + 0.45 + 0.27 * v.length, 0);
+    card(s, ax, ay, aw, ah);
+    let y = ay + 0.25;
+    for (const [h, list] of lists) {
+      eyebrow(s, h, ax + 0.3, y, aw - 0.6, PRIMARY);
+      T(s, list.map((t) => ({ text: t, options: { breakLine: true } })), { x: ax + 0.3, y: y + 0.32, w: aw - 0.6, h: 0.27 * list.length, fontSize: 11.5, color: INK, paraSpaceAfter: 3 });
+      y += 0.45 + 0.27 * list.length;
     }
-    if (!mapH) {
-      if (6.5 - ay > 1.4) placeholderBox(s, ax, ay, aw, 6.5 - ay, "Location map", "Add a site or location map.");
-      placeholders.push("Location map.");
-    }
-  } else if (om.map && om.map.path) {
-    s.addImage({ path: om.map.path, x: 7.5, y: 1.6, w: W - X0 - 7.5, h: 4.9, sizing: { type: "contain", w: W - X0 - 7.5, h: 4.9 }, altText: "Location map" });
-  } else {
-    placeholderBox(s, 7.5, 1.6, W - X0 - 7.5, 4.9, "Location map", "Add a site or location map. Maps aren't generated yet.");
-    placeholders.push("Location map.");
+    ay += ah + 0.2;
   }
+  const mh = 6.6 - ay;
+  if (om.map && om.map.path) s.addImage({ path: om.map.path, x: ax, y: ay, w: aw, h: mh, sizing: { type: "contain", w: aw, h: mh }, altText: "Location map" });
+  else { if (mh > 1.4) placeholderBox(s, ax, ay, aw, mh, "Location map", "Add a site or location map."); placeholders.push("Location map."); }
   source(s, "Radix deal record and rent roll. Amenities and map supplied by the broker.");
 }
-// Photo page: up to 4 photos after the cover photo.
 {
   const more = photos.slice(1, 5);
   const s = content("Property photos", section("The property"));
   if (more.length) {
     const g = 0.2, cols = more.length === 1 ? 1 : 2, rowsN = Math.ceil(more.length / cols);
-    const pw = (CW - g * (cols - 1)) / cols, ph = (5.2 - g * (rowsN - 1)) / rowsN;
-    more.forEach((p, i) => s.addImage({ path: p.path, x: X0 + (i % cols) * (pw + g), y: 1.55 + Math.floor(i / cols) * (ph + g), w: pw, h: ph, sizing: { type: "cover", w: pw, h: ph }, altText: p.caption || "Property photo" }));
+    const pw = (CW - g * (cols - 1)) / cols, ph = (5.0 - g * (rowsN - 1)) / rowsN;
+    more.forEach((p, i) => s.addImage({ path: p.path, x: X0 + (i % cols) * (pw + g), y: 1.6 + Math.floor(i / cols) * (ph + g), w: pw, h: ph, sizing: { type: "cover", w: pw, h: ph }, altText: p.caption || "Property photo" }));
   } else {
-    placeholderBox(s, X0, 1.55, CW, 5.0, "Property photos", "Add exterior, amenity and unit interior photos here.");
+    placeholderBox(s, X0, 1.6, CW, 5.0, "Property photos", "Add exterior, amenity and unit interior photos.");
     placeholders.push("Property photos.");
   }
 }
@@ -226,11 +247,11 @@ const drawSection = (name) => { for (const b of rendered) if (sectionOf[b] === n
 drawSection("The property");
 
 // ===== 4. Financial analysis
-divider("Financial analysis", 2);
+divider("Financial analysis", 2, blocksIn("Financial analysis"));
 drawSection("Financial analysis");
 
 // ===== 5. Market
-divider("Market", 3);
+divider("Market", 3, blocksIn("Market").concat(["Sales comparables", "Market overview"]));
 drawSection("Market");
 {
   const sc = om.sales_comps || {};
@@ -238,12 +259,12 @@ drawSection("Market");
   if ((sc.rows || []).length) {
     const rows = sc.rows.map((r) => ({ cells: [`${r.name}${r.city ? `, ${r.city}` : ""}`, r.sale_date ? dateLabel(r.sale_date) : "-", int(r.units), r.year_built ? String(r.year_built) : "-",
       money(r.price), isNum(r.price_per_unit) ? money(r.price_per_unit) : (isNum(r.price) && r.units ? money(r.price / r.units) : "-"), isNum(r.cap_rate) ? pct(r.cap_rate, 2) : "-"] }));
-    table(s, ["Property", "Sale date", "Units", "Year built", "Price", "Price per unit", "Cap rate"], rows, { x: X0, y: 1.55, w: CW, colW: B.evenCols(CW, 3.6, 6), fontSize: 11, rowH: Math.min(0.42, 5.0 / (rows.length + 1)) });
+    table(s, ["Property", "Sale date", "Units", "Year built", "Price", "Price per unit", "Cap rate"], rows, { x: X0, y: 1.6, w: CW, colW: B.evenCols(CW, 3.6, 6), fontSize: 11, rowH: Math.min(0.45, 5.0 / (rows.length + 1)) });
     source(s, sc.source || "Sales comparables as supplied.");
     check("Every sales comp has a sale date and price", sc.rows.every((r) => r.sale_date && isNum(r.price)));
     check("Sales comps name their source", !!sc.source);
   } else {
-    placeholderBox(s, X0, 1.55, CW, 5.0, "Sales comparables", "Radix doesn't hold sales comps yet. Add recent sales (price, price per unit, cap rate), or ask Claude to research them.");
+    placeholderBox(s, X0, 1.6, CW, 5.0, "Sales comparables", "Radix doesn't hold sales comps yet. Add recent sales with price, price per unit and cap rate, or ask Claude to research them.");
     placeholders.push("Sales comparables.");
   }
 }
@@ -251,11 +272,17 @@ drawSection("Market");
   const mo = om.market_overview || {};
   const s = content("Market overview", section("Market"), deal.market);
   if ((mo.points || []).length) {
-    T(s, mo.points.slice(0, 8).map((p) => ({ text: p.text, options: { bullet: { indent: 16 }, breakLine: true, paraSpaceAfter: 8 } })), { x: X0, y: 1.6, w: CW, h: 5.0, fontSize: 14, color: INK });
+    const pts = mo.points.slice(0, 8), rh = Math.min(0.62, 5.0 / pts.length);
+    pts.forEach((p, i) => {
+      const y = 1.6 + i * rh;
+      hair(s, X0, y, CW);
+      T(s, String(i + 1).padStart(2, "0"), { x: X0, y: y + 0.12, w: 0.6, h: 0.35, fontSize: 14, fontFace: DISPLAY, color: PRIMARY });
+      T(s, p.text, { x: X0 + 0.75, y: y + 0.12, w: CW - 0.75, h: rh - 0.15, fontSize: 13, color: INK });
+    });
     source(s, `Sources: ${[...new Set(mo.points.map((p) => p.source))].join("; ")}`);
     check("Every market point names its source", mo.points.every((p) => p.source));
   } else {
-    placeholderBox(s, X0, 1.55, CW, 5.0, "Market overview", "Add the submarket story: population and job growth, major employers, new supply. Claude can research it with sources.");
+    placeholderBox(s, X0, 1.6, CW, 5.0, "Market overview", "Add the submarket story: population and job growth, major employers and new supply. Claude can research it with sources.");
     placeholders.push("Market overview.");
   }
 }
@@ -264,9 +291,18 @@ drawSection("Market");
 {
   const s = content("Contacts", section("Contacts"), firm);
   const lines = (brand.firm || {}).contact_lines || [];
-  if (lines.length) T(s, lines.map((l) => ({ text: l, options: { breakLine: true, paraSpaceAfter: 10 } })), { x: X0, y: 1.6, w: 7, h: 3.4, fontSize: 15, color: INK });
-  else { placeholderBox(s, X0, 1.6, 7, 3.0, "Broker team", "Add names, titles, phone and email (firm.contact_lines in brand.json)."); placeholders.push("Broker contacts."); }
-  T(s, brand.om_disclaimer || "", { x: X0, y: 5.1, w: CW, h: 1.5, fontSize: 9, color: FAINT });
+  if (lines.length) {
+    const cw = (CW - 0.4) / 3;
+    lines.slice(0, 6).forEach((l, i) => {
+      const parts = String(l).split(/\s+·\s+/), x = X0 + (i % 3) * (cw + 0.2), y = 1.6 + Math.floor(i / 3) * 1.75;
+      card(s, x, y, cw, 1.55);
+      T(s, parts[0], { x: x + 0.3, y: y + 0.25, w: cw - 0.6, h: 0.45, fontSize: 16, fontFace: DISPLAY, color: INK });
+      T(s, parts.slice(1).join("\n"), { x: x + 0.3, y: y + 0.75, w: cw - 0.6, h: 0.7, fontSize: 10.5, color: MUTED });
+    });
+  } else { placeholderBox(s, X0, 1.6, CW, 2.9, "Broker team", "Add names, titles, phone and email (firm.contact_lines in brand.json)."); placeholders.push("Broker contacts."); }
+  hair(s, X0, 5.05, CW);
+  eyebrow(s, "Confidentiality and disclaimer", X0, 5.2, CW);
+  T(s, brand.om_disclaimer || "", { x: X0, y: 5.5, w: CW, h: 1.2, fontSize: 9, color: FAINT });
 }
 
 // ---------- drafted text may only cite figures the deck prints ----------

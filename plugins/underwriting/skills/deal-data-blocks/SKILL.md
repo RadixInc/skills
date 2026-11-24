@@ -34,7 +34,7 @@ Unless the user already named the blocks they want, show the catalog from [refer
 
 Format: use `defaults.data_blocks.format` from the brand profile if set; otherwise ask PowerPoint, PNG or both (default both).
 
-Brand: use a `brand.json` the user attached (or in the project files); otherwise `assets/brand-radix-default.json`, and say in one line that the blocks use Radix colors and they can give their own primary, accent and accent tint as hex codes. When they give colors or a default format, write them into a copy of the default profile and send `brand.json` back for them to keep (see [references/brand-profile.md](references/brand-profile.md)); in a Claude Project they can add it to the project files once. Blocks take the brand's primary, accent and accent tint colors only; layout, type and neutrals are fixed. Blocks use a font every Office install has: if the brand font isn't Arial, Calibri or Cambria, they use Arial.
+Brand: use a `brand.json` the user attached (or in the project files); otherwise `assets/brand-radix-default.json`, and say in one line that the blocks use Radix colors and they can give their own primary, accent and accent tint as hex codes. When they give colors or a default format, write them into a copy of the default profile and send `brand.json` back for them to keep (see [references/brand-profile.md](references/brand-profile.md)); in a Claude Project they can add it to the project files once. Blocks take the brand's primary, accent and accent tint colors only; layout, type and neutrals are fixed. Blocks use fonts every Office install has: serif headlines and headline figures in Georgia, body text in Arial, unless the brand's fonts are Arial, Calibri, Cambria or Georgia.
 
 ## Step 2: Gather the data
 

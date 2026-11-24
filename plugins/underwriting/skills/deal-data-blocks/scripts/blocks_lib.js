@@ -65,10 +65,13 @@ function createBlocks({ pres, data, brand, frame }) {
     return c;
   }
   const PRIMARY = guard(hex(colors.primary, "144A85"), "Primary", "dark"), ACCENT = guard(hex(colors.accent, "1F76D6"), "Accent", "dark"), TINT = guard(hex(colors.accent_tint, "EFF4FE"), "Accent tint", "light");
-  const INK = "181D27", STRONG = "252B37", MUTED = "414651", FAINT = "717680", HUSH = "A4A7AE", RULE = "EAEAF0", CANVAS = "F5F5FA";
+  // Warm neutrals: an off-white page, white cards, hairline rules.
+  const INK = "141414", STRONG = "1C1C1E", MUTED = "4A4A4F", FAINT = "85858A", HUSH = "C9C7C1", RULE = "E6E3DC", CANVAS = "F7F6F2", PAGE = "FBFAF7";
   // Blocks are pasted into the user's own files, so use a font every Office install has.
-  const DECK_SAFE = ["Arial", "Calibri", "Cambria"];
+  const DECK_SAFE = ["Arial", "Calibri", "Cambria", "Georgia"];
   const FONT = DECK_SAFE.includes((brand.fonts || {}).body) ? brand.fonts.body : "Arial";
+  // Headlines and headline numbers use a serif display face; Georgia ships with every Office install.
+  const DISPLAY = DECK_SAFE.includes((brand.fonts || {}).heading) ? brand.fonts.heading : "Georgia";
 
   // ---------- data ----------
   const deal = data.deal || {}, src = data.sources || {}, act = data.actuals || {}, pf = data.proforma || null;
@@ -162,14 +165,14 @@ function createBlocks({ pres, data, brand, frame }) {
     if (uses("proforma_cash_flow", "proforma_assumptions") || (uses("operating_statement") && pf)) check("Client model file is named", !!modelFile);
     return checks;
   }
-  const W = 13.333, X0 = 0.6, CW = W - 2 * X0, TOP = 1.45, BOTTOM = 6.65;
+  const W = 13.333, X0 = 0.6, CW = W - 2 * X0, TOP = 1.6, BOTTOM = 6.6;
 
   // The frame: block title, subject line, source line. No footer, logo or slide number, so a block pastes cleanly.
   if (!pres._radixBlockMaster) { pres._radixBlockMaster = true; pres.defineSlideMaster({
     title: "RADIX_BLOCK",
-    background: { color: "FFFFFF" },
+    background: { color: PAGE },
     objects: [
-      { placeholder: { options: { name: "title", type: "title", x: X0, y: 0.4, w: CW, h: 0.6, fontFace: FONT, fontSize: 24, bold: true, color: STRONG, align: "left", valign: "top", margin: 0 }, text: "" } },
+      { placeholder: { options: { name: "title", type: "title", x: X0, y: 0.68, w: CW, h: 0.7, fontFace: DISPLAY, fontSize: 30, bold: false, color: INK, align: "left", valign: "top", margin: 0 }, text: "" } },
     ],
   }); }
   const T = (s, text, o) => { (Array.isArray(text) ? text.map((t) => t.text) : [text]).forEach((t) => shown.push(String(t))); return s.addText(text, Object.assign({ fontFace: FONT, color: INK, margin: 0, isTextBox: true, valign: "top" }, o)); };
@@ -178,32 +181,51 @@ function createBlocks({ pres, data, brand, frame }) {
     const s = pres.addSlide({ masterName: (frame && frame.master) || "RADIX_BLOCK", sectionTitle: frame && frame.section ? frame.section(current) : undefined });
     shown.push(title);
     s.addText(title, { placeholder: "title", align: "left" });
-    T(s, subject, { x: X0, y: 0.98, w: CW, h: 0.3, fontSize: 12, color: FAINT, objectName: "Subject" });
-    T(s, source, { x: X0, y: 6.8, w: frame && frame.sourceWidth ? frame.sourceWidth : CW, h: 0.4, fontSize: 10, color: FAINT, objectName: "Source" });
+    // Eyebrow: the deal and the data's date, small caps above the title.
+    T(s, String(subject || "").toUpperCase(), { x: X0, y: 0.38, w: CW, h: 0.25, fontSize: 9, bold: true, color: FAINT, charSpacing: 1.5, objectName: "Subject" });
+    T(s, source, { x: X0, y: 6.78, w: frame && frame.sourceWidth ? frame.sourceWidth : CW, h: 0.35, fontSize: 8.5, color: FAINT, objectName: "Source" });
     if (frame && frame.decorate) frame.decorate(s, current);
     return s;
   };
   const subject = (...parts) => [deal.name].concat(parts).filter(Boolean).join(" · ");
 
+  // Tables: horizontal hairlines only, no fills except a soft tint on the key row, a ruled total line.
   function table(s, header, rows, o) {
     const fs_ = o.fontSize || 11;
     header.forEach((h) => shown.push(String(h))); rows.forEach((r) => r.cells.forEach((c) => shown.push(String(c))));
-    const head = header.map((h, i) => ({ text: h, options: { bold: true, color: FAINT, fill: { color: CANVAS }, align: i ? "right" : "left", fontSize: fs_ - 1 } }));
-    const body = rows.map((r) => r.cells.map((c, i) => ({
-      text: c, options: { align: i ? "right" : "left", bold: !!r.bold, color: r.muted ? FAINT : INK, fill: { color: r.fill || "FFFFFF" }, fontSize: fs_ },
-    })));
+    const NONE = { type: "none" };
+    const line = (pt, color) => ({ type: "solid", pt, color });
+    const head = header.map((h, i) => ({ text: String(h).toUpperCase(), options: { bold: true, color: FAINT, align: i ? "right" : "left", fontSize: Math.max(7.5, fs_ - 2.5), charSpacing: 0.5,
+      border: [NONE, NONE, line(0.75, STRONG), NONE] } }));
+    const body = rows.map((r, ri) => {
+      const section = r.bold && r.muted, total = !section && r.fill === CANVAS, key = r.fill === TINT;
+      const top = total ? line(0.75, STRONG) : NONE;
+      const bottom = ri === rows.length - 1 ? NONE : line(0.5, RULE);
+      return r.cells.map((c, i) => ({
+        text: section ? String(c).toUpperCase() : c,
+        options: { align: i ? "right" : "left", bold: !!r.bold && !section, color: section ? FAINT : r.muted ? FAINT : INK, fontSize: section ? Math.max(7.5, fs_ - 2.5) : fs_,
+          charSpacing: section ? 0.5 : 0, fill: key ? { color: TINT } : undefined, border: [top, NONE, bottom, NONE] },
+      }));
+    });
     s.addTable([head].concat(body), {
       x: o.x, y: o.y, w: o.w, colW: o.colW, fontFace: FONT, fontSize: fs_, color: INK, valign: "middle",
-      border: { type: "solid", pt: 0.5, color: RULE }, rowH: o.rowH || 0.3, margin: [0.03, 0.08, 0.03, 0.08], autoPage: false,
+      rowH: o.rowH || 0.3, margin: [0.03, 0.08, 0.03, 0.08], autoPage: false,
     });
   }
+  // A white card with a hairline border, the surface every chart and tile sits on.
+  const card = (s, x, y, w, h) => s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.12, fill: { color: "FFFFFF" }, line: { color: RULE, width: 0.75 } });
+  // Charts sit inside a card, inset from its edge.
+  const chartCard = (s, type, series, o) => {
+    card(s, o.x, o.y, o.w, o.h);
+    return s.addChart(type, series, Object.assign({}, o, { x: o.x + 0.2, y: o.y + 0.15, w: o.w - 0.4, h: o.h - 0.3 }));
+  };
   const evenCols = (w, first, n) => [first].concat(Array(n).fill((w - first) / n));
   const chartBase = (title) => ({
     fontFace: FONT, catAxisLabelFontFace: FONT, valAxisLabelFontFace: FONT, dataLabelFontFace: FONT, legendFontFace: FONT, titleFontFace: FONT,
-    catAxisLabelColor: FAINT, valAxisLabelColor: FAINT, catAxisLabelFontSize: 10, valAxisLabelFontSize: 9,
-    valGridLine: { color: RULE, size: 0.5 }, catGridLine: { style: "none" }, catAxisLineShow: true, catAxisLineColor: "D5D7DA",
-    dataLabelColor: MUTED, dataLabelFontSize: 9, legendColor: MUTED, legendFontSize: 10,
-    showTitle: true, title, titleFontSize: 12, titleColor: STRONG,
+    catAxisLabelColor: FAINT, valAxisLabelColor: FAINT, catAxisLabelFontSize: 9, valAxisLabelFontSize: 8,
+    valGridLine: { color: RULE, size: 0.5, style: "dash" }, catGridLine: { style: "none" }, catAxisLineShow: false, valAxisLineShow: false,
+    dataLabelColor: MUTED, dataLabelFontSize: 8, legendColor: MUTED, legendFontSize: 9, legendPos: "t",
+    showTitle: !!title, title, titleFontSize: 10, titleColor: FAINT, titleFontFace: FONT,
   });
 
   const drawFns = {
@@ -216,12 +238,13 @@ function createBlocks({ pres, data, brand, frame }) {
         ["Occupancy", pct(snap.occupancy_pct)], ["Average market rent", money(snap.market_rent)],
         ["Average in-place rent", money(snap.in_place_rent)], ["In-place as % of market", pct(snap.pct_of_market)],
       ];
-      const gap = 0.25, tw = (CW - 3 * gap) / 4, th = 2.3;
+      const gap = 0.2, tw = (CW - 3 * gap) / 4, th = 2.2;
       tiles.forEach(([label, val], i) => {
         const x = X0 + (i % 4) * (tw + gap), y = TOP + 0.1 + Math.floor(i / 4) * (th + gap);
-        s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: tw, h: th, rectRadius: 0.08, fill: { color: "FFFFFF" }, line: { color: RULE, width: 0.75 } });
-        T(s, label, { x: x + 0.3, y: y + 0.35, w: tw - 0.6, h: 0.35, fontSize: 13, color: MUTED });
-        T(s, val, { x: x + 0.3, y: y + 0.9, w: tw - 0.6, h: 0.8, fontSize: 32, bold: true, color: PRIMARY });
+        card(s, x, y, tw, th);
+        T(s, val, { x: x + 0.3, y: y + 0.3, w: tw - 0.6, h: 0.95, fontSize: 40, fontFace: DISPLAY, color: INK, valign: "bottom" });
+        s.addShape(pres.shapes.LINE, { x: x + 0.3, y: y + th - 0.75, w: 0.35, h: 0, line: { color: ACCENT, width: 1.5 } });
+        T(s, label, { x: x + 0.3, y: y + th - 0.6, w: tw - 0.6, h: 0.35, fontSize: 11, color: MUTED });
       });
     },
 
@@ -236,8 +259,8 @@ function createBlocks({ pres, data, brand, frame }) {
       table(s, ["Unit type", "Units", "% of units", "Avg SF", "Market rent", "Market $/SF", "In-place rent", "In-place $/SF", "Occupied"], rows,
         { x: X0, y: TOP, w: CW, colW: evenCols(CW, 2.4, 8), fontSize: 12, rowH });
       const bottom = TOP + rowH * (rows.length + 1);
-      if (BOTTOM - bottom > 1.6) s.addChart(pres.charts.BAR, [{ name: "Units", labels: um.rows.map(unitType), values: um.rows.map((r) => r.units) }],
-        Object.assign(chartBase("Units by unit type"), { x: X0, y: bottom + 0.3, w: CW, h: BOTTOM - bottom - 0.3, barDir: "bar", barGapWidthPct: 45, catAxisOrientation: "maxMin",
+      if (BOTTOM - bottom > 1.6) chartCard(s, pres.charts.BAR, [{ name: "Units", labels: um.rows.map(unitType), values: um.rows.map((r) => r.units) }],
+        Object.assign(chartBase("Units by unit type"), { x: X0, y: bottom + 0.3, w: CW, h: BOTTOM - bottom - 0.3, barDir: "bar", barGapWidthPct: 70, catAxisOrientation: "maxMin",
           chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "#,##0", showLegend: false, valAxisHidden: true, valGridLine: { style: "none" } }));
     },
 
@@ -246,12 +269,12 @@ function createBlocks({ pres, data, brand, frame }) {
       const s = block("Rents vs. market", subject(`Rent roll as of ${rrDate}`),
         `Radix rent roll as of ${rrDate}. Contractual rent. Gap to market (market less in-place, per unit per month) derived. Last 90 days: average rent on leases signed in the 90 days before the rent roll date.`);
       const labels = um.rows.map(unitType);
-      s.addChart(pres.charts.BAR, [
+      chartCard(s, pres.charts.BAR, [
         { name: "Market rent", labels, values: um.rows.map((r) => Math.round(r.market_rent)) },
         { name: "In-place rent", labels, values: um.rows.map((r) => Math.round(r.in_place_rent)) },
         { name: "Leases, last 90 days", labels, values: um.rows.map((r) => Math.round(r.last90_rent || 0)) },
       ], Object.assign(chartBase("Average rent per unit per month"), {
-        x: X0, y: TOP, w: 6.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, ACCENT, HUSH],
+        x: X0, y: TOP, w: 6.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 90, chartColors: [HUSH, PRIMARY, ACCENT],
         showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b",
       }));
       const gap = (r) => (isNum(r.market_rent) && isNum(r.in_place_rent) ? money(r.market_rent - r.in_place_rent) : "-");
@@ -283,11 +306,11 @@ function createBlocks({ pres, data, brand, frame }) {
       const y = TOP + rowH * (rows.length + 1) + 0.15;
       T(s, periods.map((p) => `${p.label}: ${p.window}`).join("   ·   "), { x: X0, y, w: CW, h: 0.3, fontSize: 10, color: FAINT });
       const cy = y + 0.45;
-      if (BOTTOM - cy > 1.4) s.addChart(pres.charts.BAR, [
+      if (BOTTOM - cy > 1.4) chartCard(s, pres.charts.BAR, [
         { name: "Effective gross revenue", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.egr)) },
         { name: "Operating expenses", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.opex)) },
         { name: "Net operating income", labels: periods.map((p) => p.label), values: periods.map((p) => Math.round(p.noi)) },
-      ], Object.assign(chartBase(""), { showTitle: false, x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 80, chartColors: [ACCENT, HUSH, PRIMARY],
+      ], Object.assign(chartBase(""), { showTitle: false, x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 80, chartColors: [HUSH, "E9E7E1", PRIMARY],
         showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0.00,,\"M\"", valAxisHidden: true, valGridLine: { style: "none" }, showLegend: true, legendPos: "r" }));
     },
 
@@ -327,8 +350,8 @@ function createBlocks({ pres, data, brand, frame }) {
       const rowH = 0.34;
       table(s, ["$"].concat(years), rows, { x: X0, y: TOP, w: CW, colW: evenCols(CW, 2.8, years.length), fontSize: 10, rowH });
       const cy = TOP + rowH * (rows.length + 1) + 0.25;
-      if (BOTTOM - cy > 1.3) s.addChart(pres.charts.BAR, [{ name: "Net operating income", labels: years, values: hcf.noi.map(Math.round) }], Object.assign(chartBase("Net operating income by year"), {
-        x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 70, chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", valAxisMinVal: 0,
+      if (BOTTOM - cy > 1.3) chartCard(s, pres.charts.BAR, [{ name: "Net operating income", labels: years, values: hcf.noi.map(Math.round) }], Object.assign(chartBase("Net operating income by year"), {
+        x: X0, y: cy, w: CW, h: BOTTOM - cy, barDir: "col", barGapWidthPct: 110, chartColors: [PRIMARY], showValue: true, dataLabelPosition: "outEnd", valAxisMinVal: 0,
         dataLabelFormatCode: "$#,##0", valAxisHidden: true, valGridLine: { style: "none" }, showLegend: false,
       }));
     },
@@ -336,12 +359,13 @@ function createBlocks({ pres, data, brand, frame }) {
     proforma_assumptions() {
       const s = block("Pro forma assumptions", subject(), `From ${modelFile || "the client model"}, as the model states them.`);
       const list = data.assumptions;
-      const half = Math.ceil(list.length / 2), colw = (CW - 0.6) / 2;
+      const half = Math.ceil(list.length / 2), colw = (CW - 1.4) / 2;
+      card(s, X0, TOP, CW, Math.min(BOTTOM - TOP, half * 0.68 + 0.5));
       list.forEach((a, i) => {
-        const x = X0 + (i < half ? 0 : colw + 0.6), y = TOP + (i % half) * 0.68;
+        const x = X0 + 0.4 + (i < half ? 0 : colw + 0.6), y = TOP + 0.3 + (i % half) * 0.68;
         T(s, a.label, { x, y, w: colw * 0.38, h: 0.45, fontSize: 14, color: FAINT });
-        T(s, a.value, { x: x + colw * 0.38, y, w: colw * 0.62, h: 0.45, fontSize: 14, bold: true, color: INK, align: "right" });
-        s.addShape(pres.shapes.LINE, { x, y: y + 0.55, w: colw, h: 0, line: { color: RULE, width: 0.75 } });
+        T(s, a.value, { x: x + colw * 0.38, y: y - 0.06, w: colw * 0.62, h: 0.5, fontSize: 18, fontFace: DISPLAY, color: INK, align: "right" });
+        if (i % half !== half - 1 && i !== list.length - 1) s.addShape(pres.shapes.LINE, { x, y: y + 0.55, w: colw, h: 0, line: { color: RULE, width: 0.5 } });
       });
     },
 
@@ -354,9 +378,9 @@ function createBlocks({ pres, data, brand, frame }) {
       // Chart only the unit types every property has, so no bar is a missing value drawn as $0.
       const chartKeys = present.filter((k) => subj[k] && deals.every((d) => d.rows.some((r) => typeKey(r) === k)));
       const chartLabels = chartKeys.map((k) => unitType(all[k]));
-      s.addChart(pres.charts.BAR, [{ name: `${deal.name} (subject)`, labels: chartLabels, values: chartKeys.map((k) => Math.round(subj[k].in_place_rent)) }]
+      chartCard(s, pres.charts.BAR, [{ name: `${deal.name} (subject)`, labels: chartLabels, values: chartKeys.map((k) => Math.round(subj[k].in_place_rent)) }]
         .concat(deals.map((d) => ({ name: d.name, labels: chartLabels, values: chartKeys.map((k) => Math.round(d.rows.find((x) => typeKey(x) === k).in_place_rent)) }))),
-        Object.assign(chartBase("Average in-place rent by unit type"), { x: X0, y: TOP, w: 5.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 60, chartColors: [PRIMARY, HUSH, ACCENT, "D5D7DA", "717680", "BACFF9"],
+        Object.assign(chartBase("Average in-place rent by unit type"), { x: X0, y: TOP, w: 5.2, h: BOTTOM - TOP, barDir: "col", barGapWidthPct: 90, chartColors: [PRIMARY, HUSH, "A3A09A", "DEDBD4", "7A7873", ACCENT],
           showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "$#,##0", valAxisLabelFormatCode: "$#,##0", showLegend: true, legendPos: "b" }));
       const rows = [];
       const psf = (r) => (isNum(r.in_place_rent) && r.avg_sf ? `$${(r.in_place_rent / r.avg_sf).toFixed(2)}` : "-");
@@ -381,9 +405,9 @@ function createBlocks({ pres, data, brand, frame }) {
   return {
     CATALOG, plan, gate, draw, checks, colorNotes, shown,
     // Shared look and helpers, so a document's own slides match its blocks.
-    style: { PRIMARY, ACCENT, TINT, INK, STRONG, MUTED, FAINT, HUSH, RULE, CANVAS, FONT, W, X0, CW, TOP, BOTTOM },
+    style: { PRIMARY, ACCENT, TINT, INK, STRONG, MUTED, FAINT, HUSH, RULE, CANVAS, PAGE, FONT, DISPLAY, W, X0, CW, TOP, BOTTOM },
     fmt: { isNum, money, compact, pct, int, signedCompact, dateLabel, unitType },
-    T, table, chartBase, evenCols, block,
+    T, table, card, chartBase, evenCols, block,
     facts: { deal, snap, units, um, act, cols, pf, hcf, rrDate, modelFile, comps, hist },
   };
   }

@@ -27,7 +27,10 @@ Every block has the same frame: the block title, a subject line (deal name and t
 - Money in whole dollars with thousands separators; negatives in parentheses. Changes in compact form (+$1.57M, -$679K).
 - Percents to one decimal place.
 - Unit types are labeled "1 bed / 1 bath", "Studio / 1 bath".
-- Totals and NOI rows are bold; NOI is tinted with the brand's accent tint.
+- Warm off-white page; charts and tiles sit on white cards with hairline borders.
+- Titles and headline figures in a serif (Georgia); labels, tables and source lines in a sans (Arial). A small uppercase line above each title names the deal and the data date.
+- Tables use horizontal hairlines only: uppercase header row over a dark rule, totals bold over a dark rule, NOI tinted with the brand's accent tint.
+- Charts have no axis lines and light dashed gridlines; comparison series are warm greys so the subject stands out in the brand color.
 - No footer, logo or slide number, so a block pastes cleanly into the user's own template.
 - No monthly charts: OMs show periods side by side (years, T12, T3), and monthly NOI swings with when taxes and insurance are booked.
 - Every derived figure (per unit, per SF, % of units, gap to market, expense ratio, growth, change) is named in the block's source line.

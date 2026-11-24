@@ -36,7 +36,7 @@ Brokers build an OM for every listing by pulling the rent roll, the operating st
 ## Step 1: Brand and format
 
 - **Brand:** use a `brand.json` the user attached (or in the project files); otherwise `assets/brand-radix-default.json`, and say in one line that the OM uses Radix colors and they can send their primary, accent and accent tint as hex codes, a logo, their broker team and their OM disclaimer. Show the color roles from [references/brand-profile.md](references/brand-profile.md) when they ask. When they give any of these, write them into a copy of the default profile (`firm.contact_lines`, `om_disclaimer`, `logo.data_uri`) and send `brand.json` back for them to keep.
-- **Font:** decks use a font every Office install has. If the brand font isn't Arial, Calibri or Cambria, the deck uses Arial; say so once.
+- **Fonts:** decks use fonts every Office install has: Georgia for headlines and big figures, Arial for body text, unless the brand's fonts are Arial, Calibri, Cambria or Georgia. Say so once if the brand font is replaced.
 - **Format:** `defaults.om.format` if set; otherwise ask PowerPoint, PDF or both (default both).
 
 ## Step 2: The deal and offering terms
