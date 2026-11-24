@@ -7,10 +7,10 @@ description: Draft a branded one-page Investment Committee (IC) memo for a Radix
 
 An IC memo answers one question for the committee: should we bid, and at what price? The one-pager is led by the client's model and drawn with Radix's own components (page head, metric tiles, report tables), so it reads like a Radix report:
 
-1. **Page head**: the property, memo type, structure and hold as plain text, and the investment overview (about 100 to 150 words: the opportunity, the thesis, the plan and the main consideration).
+1. **Page head**: the property, memo type, structure and hold as plain text, and a short investment overview (two sentences: what is being bought and how, and the plan at a high level).
 2. **Deal metrics and investment thesis**: required equity first (the cash to close), then levered IRR, multiple, going-in and exit cap; next to them, the strategy, 2 to 4 sized value drivers and what the plan depends on, read from how the model is set up and confirmed by the analyst.
 3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted. Optionally the **equity waterfall**: LP and GP splits by tier and returns by partner, per client.
-4. **Operating statement and comps**: the T12 from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given; beside it, the subject next to comparable properties (in-place rent, rent per SF, occupancy). T3 and T1 are pulled for the pre-send checks but not printed.
+4. **Operating statement, unit mix and comps**: the T12 from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given; beside it, the unit mix by bed / bath and the subject next to comparable properties (in-place rent, rent per SF, occupancy). T3 and T1 are pulled for the pre-send checks but not printed.
 
 Risks and mitigants are the analyst's judgment and belong in the full IC memo, not the screening one-pager. Before the memo goes out, the renderer runs fixed pre-send checks (see [references/pre-send-checks.md](references/pre-send-checks.md)); you report them to the analyst, and they never print on the memo.
 
@@ -82,17 +82,11 @@ No model → leave those blocks `null`. The memo still renders the actuals, with
 1. **Read the strategy from the model.** Classify it from the signals (renovations, occupancy path, loss to lease, rent growth, expense and income changes, leverage, exit cap) and name it specifically ("Value-add: interior renovation and lease-up"). If the model has no plan, say "No business plan in the model"; never invent one.
 2. **Size 2 to 4 value drivers** from the model's cells, each a title and one sentence with dollars, units, percentages or months. No adjectives standing in for numbers.
 3. **Name what the plan depends on**: the single assumption the returns rest on, sized (including cap rate compression when the exit cap is below the going-in).
-4. **Ask the analyst to verify** in the same round as the overview: your reading of the strategy, and their edge (why this deal, why now), which the model can't show. Record cells in `thesis.signals` and each driver's `sources`; set `status` to `confirmed` when they agree.
+4. **Ask the analyst to verify**: one message with your reading of the strategy and drivers, plus their edge (why this deal, why now), which the model can't show. At most 2 or 3 questions; look at the deal record, attached files and anything they point to before asking. A stabilized core deal with no plan needs no questions. Record cells in `thesis.signals` and each driver's `sources`; set `status` to `confirmed` when they agree.
 
 **Overview:**
 
-Follow [references/investment-overview.md](references/investment-overview.md). In short:
-
-1. **Decide the depth.** A deal with a business plan (value-add, renovation, lease-up, repositioning) gets the full discovery. A stabilized core or core-plus deal gets a short factual overview and no questions.
-2. **Use what's there first**: the deal record, the model, attached files, the conversation, and any source the user points to.
-3. **Ask only what matters**: one message with your proposed reading and at most 2 or 3 questions, and only when something material is missing. Otherwise just write it.
-4. **Write 100 to 150 words** of narrative: the opportunity, the value-creation strategy, its support, the main consideration. Don't repeat metrics the page already shows unless they support the thesis; any figure you use appears exactly as the page prints it.
-5. **Let the analyst approve or edit it.** Record the sources in `commentary.sources` (they go in the run summary, not on the memo) and keep an approved overview on later reruns.
+Follow [references/investment-overview.md](references/investment-overview.md): two sentences, about 30 to 60 words. The first says what is being bought and how (type, location, all cash or financed, hold); the second gives the plan at a high level, taken from the thesis ("a value-add plan to renovate most units and lease up the vacancy"). Don't repeat figures the page shows or the thesis drivers. It follows whatever strategy the analyst confirms, so it needs no questions of its own.
 
 **Line notes:** ask the analyst for a short note on any pro forma line that moves a lot from the T12 (the pre-send checks point at them). Put them in `proforma.notes` by group (`potential_rent`, `other_income`, `rent`, `occupancy` and so on). The Notes column only appears when at least one note exists. Never write a note yourself.
 

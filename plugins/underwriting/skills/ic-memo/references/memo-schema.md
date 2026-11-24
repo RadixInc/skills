@@ -74,7 +74,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
             "subject": {"units": 0, "year_built": 0, "avg_sf": 0, "in_place_rent": 0, "occupied_pct": 0, "as_of": "YYYY-MM-DD"},
             "rows": [{"name": "", "city": "", "as_of": "YYYY-MM-DD", "units": 0, "year_built": null, "avg_sf": 0, "in_place_rent": 0, "occupied_pct": 0}],
             "average": null},
-  "commentary": {"status": "draft", "depth": "business_plan", "text": "100 to 150 words.",
+  "commentary": {"status": "draft", "text": "Two sentences, about 30 to 60 words.",
                  "sources": [{"point": "Value-add plan: lease-up to 94%", "source": "Client model, Input!F40", "kind": "model"}]}
 }
 ```
@@ -94,7 +94,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **`hold_cash_flow`** isn't drawn on the one-pager anymore; it feeds the pre-send checks, the DSCR tile and the Word file.
 - **`comps`**: `kind` is `market` (Radix Market Comps, when the MCP has it) or `rent` (Radix rent comp set from the account's deals). Rows are each comp's rent roll totals as the server returns them; percents are percent numbers. `average` is optional and only from the comp set tool's averages. The page shows rent per SF, derived. Leave `comps` null for a placeholder.
 - **The one-pager prints the T12 and the Year 1 pro forma only.** Keep T3 and T1 in `actuals` anyway: the pre-send checks and the Word appendix use them.
-- **`commentary`** is the investment overview in the page head (see [investment-overview.md](investment-overview.md)): `text` of about 100 to 150 words with every figure as the page shows it; `status` `draft` or `approved` (keep an approved overview on reruns); `depth` `business_plan`, `stabilized` or `unknown`; `sources` lists where each point came from, `kind` one of `documented`, `model`, `third_party`, `inference`. Sources print in the run summary, never on the memo.
+- **`commentary`** is the investment overview in the page head (see [investment-overview.md](investment-overview.md)): `text` of two sentences (about 30 to 60 words): the basics and the plan at a high level, without figures the page already shows; `status` `draft` or `approved` (keep an approved overview on reruns); `sources` lists where each point came from, `kind` one of `documented`, `model`, `third_party`, `inference`. Sources print in the run summary, never on the memo.
 - **`proforma.notes`** are the analyst's notes by group key (any of the eight groups, plus `egr`, `opex`, `noi`, `rent`, `occupancy`, `cap_rate`). They print in a Notes column on the operating statement, which only appears when a note exists. Never write them yourself. Pre-send checks are computed and never printed, see [pre-send-checks.md](pre-send-checks.md).
 
 ## Accuracy gate

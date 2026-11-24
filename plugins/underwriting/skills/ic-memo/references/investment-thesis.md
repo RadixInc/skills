@@ -37,7 +37,12 @@ Classify the deal from the signals, then size 2 to 4 drivers from the cells. If 
 
 ## 2. Ask the analyst to verify
 
-Combine this with the investment overview's single round of questions (at most 2 or 3 in total). Show the strategy and drivers as you read them and ask:
+Before asking, look at what's already there: the deal record (comments, deal type, quality), files the user attached or points to (an OM, deal notes), and the conversation. Read a source the user names with the tools you have instead of asking them to paste it.
+
+- **Business plan deal**: one message with your reading and at most 2 or 3 questions. Don't ask for figures already in the model, and don't ask them to confirm every sourced fact.
+- **Stabilized core deal with no plan**: no questions. Write the factual card and let the analyst add an edge if they want.
+
+Show the strategy and drivers as you read them and ask:
 
 > From the model, this reads as a value-add deal: 400 of 555 units renovated at $12,500 each over 36 months for a $175 premium, with occupancy going from 76% to 94% by Year 2. The returns mostly depend on the premium. Is that the plan? And what's your edge on this one (why this deal, why now)?
 
@@ -49,4 +54,4 @@ Set `thesis.status` to `confirmed` once they agree. Keep a confirmed thesis on r
 
 ## 3. Relationship to the investment overview
 
-The overview at the top tells the story in prose (the opportunity, why it exists, the main consideration). The thesis card is the structured version: strategy, sized drivers, dependency. Don't repeat the drivers word for word in the overview.
+The overview at the top is two plain sentences: the basics and the plan in a phrase. The thesis card carries the depth: strategy, sized drivers, dependency. The overview takes its plan statement from the confirmed thesis.

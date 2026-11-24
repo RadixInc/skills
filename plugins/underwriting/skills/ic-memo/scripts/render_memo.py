@@ -454,10 +454,27 @@ def build_html(memo, brand, der, S):
         facts.append(deal["building_type"])
     if deal.get("total_sf"):
         facts.append(f"{S.add(fmt_int(deal['total_sf']))} SF")
+    # ----- unit mix (by bed / bath, from the rent roll)
     um = memo.get("unit_mix") or {}
-    mix_line = " · ".join(f"{S.add(fmt_int(r['units']))} × {esc(unit_type(r))}" for r in um.get("rows", []) if r.get("units"))
-    if is_num(snap.get("occupancy_pct")):
-        mix_line += f" · {S.add(fmt_pct(snap['occupancy_pct']))} occupied on the {esc(date_label(rr.get('as_of')))} rent roll"
+    if um.get("rows"):
+        def umrow(label, r, cls=""):
+            share = S.add(fmt_pct(100 * r["units"] / units)) if is_num(r.get("units")) and units else "-"
+            cells = [S.add(fmt_int(r.get("units"))), share, S.add(fmt_int(r.get("avg_sf"))) if is_num(r.get("avg_sf")) else "-",
+                     S.money(r.get("market_rent")) if is_num(r.get("market_rent")) else "-",
+                     S.money(r.get("in_place_rent")) if is_num(r.get("in_place_rent")) else "-",
+                     S.add(fmt_pct(r["occupied_pct"])) if is_num(r.get("occupied_pct")) else "-"]
+            return (f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>' +
+                    "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{c}</td>' for c in cells) + "</tr>")
+        ubody = "".join(umrow(unit_type(r), r) for r in um["rows"])
+        if um.get("total"):
+            ubody += umrow("Total / avg", um["total"], " rx-rtbl__tr--total rx-rtbl__tr--total-first")
+        mix_html = ('<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:24%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:14%"><col style="width:15%"><col></colgroup>'
+                    '<thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">Unit type</th>' +
+                    "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{h}</th>' for h in ["Units", "Mix", "Avg SF", "Market", "In-place", "Occ."]) +
+                    f'</tr></thead><tbody>{ubody}</tbody></table></div>')
+        mix_meta = f"Rent roll as of {date_label(rr.get('as_of'))}"
+    else:
+        mix_html, mix_meta = ph("Units, size, market and in-place rent and occupancy by bed / bath", "a mapped rent roll"), ""
     com = memo.get("commentary") or {}
     summary_html = ""
     if com.get("text"):
@@ -724,7 +741,7 @@ p {{ margin:0; }}
 .logo {{ max-height:20px; max-width:130px; }}
 .ph__date {{ font-size:6.6pt; color:#717680; font-weight:500; margin-top:2px; }}
 .ph__facts {{ margin-top:5px; font-size:7pt; color:#414651; font-weight:500; }}
-.ph__mix {{ margin-top:1px; font-size:7pt; color:#717680; font-weight:500; }}
+.stack {{ display:flex; flex-direction:column; gap:10px; min-width:0; }}
 .ph__summary {{ margin-top:9px; padding-top:9px; border-top:1px solid #eaeaf0; }}
 .ph__summary-label {{ font-size:6.5pt !important; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#717680 !important; margin-bottom:3px; }}
 .ph__summary p {{ font-size:7.8pt; line-height:1.5; color:#181d27; }}
@@ -797,7 +814,6 @@ p {{ margin:0; }}
       <div class="ph__identity"><h1 class="ph__title">{esc(deal.get('name'))}</h1>
 </div>
       <div class="ph__facts">{esc(' · '.join(facts))}</div>
-      {f'<div class="ph__mix">{mix_line}</div>' if mix_line else ''}
     </div>
     <div class="ph__aside">{brand_mark}<div class="ph__date">{esc(' · '.join(marks))}</div><div class="ph__date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</div></div>
   </div>
@@ -815,7 +831,10 @@ p {{ margin:0; }}
 {wf_html}
 <div class="grid g-c">
   <section class="card"><div class="card__head"><span class="card__title">Operating statement</span><span class="card__meta">T12 from Radix · pro forma from the model</span></div>{ops_html}</section>
-  <section class="card"><div class="card__head"><span class="card__title">Comps</span><span class="card__meta">{esc(comps_meta)}</span></div>{comps_html}</section>
+  <div class="stack">
+    <section class="card"><div class="card__head"><span class="card__title">Unit mix</span><span class="card__meta">{esc(mix_meta)}</span></div>{mix_html}</section>
+    <section class="card"><div class="card__head"><span class="card__title">Comps</span><span class="card__meta">{esc(comps_meta)}</span></div>{comps_html}</section>
+  </div>
 </div>
 <div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
 """
@@ -1014,6 +1033,16 @@ def write_docx(memo, brand, der, docx_path):
     add("noi", "Net operating income", True, True)
     table(hdr, rows, bold=bold, shaded=shaded)
 
+    um = memo.get("unit_mix") or {}
+    if um.get("rows"):
+        heading("Unit mix")
+        rws = [[unit_type(r), fmt_int(r.get("units")), fmt_pct(100 * r["units"] / memo["deal"]["units"]) if is_num(r.get("units")) and memo["deal"].get("units") else "-", fmt_int(r.get("avg_sf")), fmt_money(r.get("market_rent")),
+                fmt_money(r.get("in_place_rent")), fmt_pct(r.get("occupied_pct"))] for r in um["rows"]]
+        t = um.get("total") or {}
+        rws.append(["Total / avg", fmt_int(t.get("units")), "100.0%", fmt_int(t.get("avg_sf")), fmt_money(t.get("market_rent")),
+                    fmt_money(t.get("in_place_rent")), fmt_pct(t.get("occupied_pct"))])
+        table(["Unit type", "Units", "% of units", "Avg SF", "Market", "In-place", "Occ."], rws, bold=(len(rws) - 1,))
+        small(f"Rent roll as of {date_label((src.get('rent_roll') or {}).get('as_of'))}")
     comps = memo.get("comps") or {}
     if comps.get("rows"):
         heading("Comps · " + ("market comps" if comps.get("kind") == "market" else "rent comps from Radix"))
@@ -1063,16 +1092,6 @@ def write_docx(memo, brand, der, docx_path):
         rows.append([label] + [fmt_money((act.get(key) or {}).get(c["key"])) for c in cols]); bold.append(len(rows) - 1)
     table([""] + [c["label"] for c in cols], rows, bold=bold)
     small("Radix operating statement. " + "; ".join(f'{c["label"]} {c.get("window", "")}' for c in cols))
-    um = memo.get("unit_mix") or {}
-    if um.get("rows"):
-        heading("Appendix · unit mix (Radix rent roll)")
-        rws = [[unit_type(r), fmt_int(r.get("units")), fmt_int(r.get("avg_sf")), fmt_money(r.get("market_rent")),
-                fmt_money(r.get("in_place_rent")), fmt_pct(r.get("occupied_pct"))] for r in um["rows"]]
-        t = um.get("total") or {}
-        rws.append(["Total / avg", fmt_int(t.get("units")), fmt_int(t.get("avg_sf")), fmt_money(t.get("market_rent")),
-                    fmt_money(t.get("in_place_rent")), fmt_pct(t.get("occupied_pct"))])
-        table(["Unit type", "Units", "Avg SF", "Market", "In-place", "Occ."], rws, bold=(len(rws) - 1,))
-        small(f"Rent roll as of {date_label((src.get('rent_roll') or {}).get('as_of'))}")
     small(brand.get("disclaimer") or "")
     doc.save(str(docx_path))
 
@@ -1088,8 +1107,8 @@ def run_summary(memo, status, checks, placeholders, flags, outputs):
     if com.get("text"):
         words = len(com["text"].split())
         lines += ["", f"## Investment overview ({com.get('status', 'draft')}, {words} words{', depth: ' + com['depth'] if com.get('depth') else ''})"]
-        if not 60 <= words <= 170:
-            lines.append(f"- Length: {words} words; aim for about 100 to 150.")
+        if not 20 <= words <= 75:
+            lines.append(f"- Length: {words} words; aim for two sentences, about 30 to 60 words.")
         lines += [f"- {s_.get('point', '')}: {s_.get('source', '')} ({s_.get('kind', 'unspecified')})" for s_ in com.get("sources") or []] or ["- No sources recorded."]
     th = memo.get("thesis") or {}
     if th.get("pillars"):

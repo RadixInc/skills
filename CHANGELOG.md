@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ic-memo`: a Unit mix card (by bed / bath) sits above the comps; the unit-mix line under the address is gone; the investment overview is now two plain sentences (what is bought and how, and the plan at a high level), with the depth moved to the thesis card and its single round of questions.
 - `ic-memo`: "NOI over the hold" is replaced by an Investment thesis card: a specific strategy, 2 to 4 value drivers sized from the model's setup (renovation schedule and budget, occupancy and loss-to-lease paths, rent growth, expenses, leverage, exit cap) and what the plan depends on, confirmed by the analyst in the same round as the overview. Sources go to the run summary; the gate requires every driver to cite one.
 - `ic-memo`: the operating statement shows only the T12 and the Year 1 pro forma (T3 and T1 still feed the pre-send checks); the space beside it is a comps card, from Radix rent comps today and Radix Market Comps once the MCP offers them.
 - `ic-memo`: the page-head summary is now an investment overview (about 100 to 150 words) drafted with the analyst: discovery from the deal record, model and attached files first, depth set by whether there's a business plan (stabilized core deals get a short factual overview and no questions), at most 2 or 3 questions in one message, sources recorded in the run summary, approved text kept on reruns. Brand colors are kept readable (contrast guard), and the default disclaimer no longer calls the summary a draft.
