@@ -14,7 +14,7 @@ An IC memo answers one question for the committee: should we bid, and at what pr
 
 Risks and mitigants are the analyst's judgment and belong in the full IC memo, not the screening one-pager. Before the memo goes out, the renderer runs fixed pre-send checks (see [references/pre-send-checks.md](references/pre-send-checks.md)); you report them to the analyst, and they never print on the memo.
 
-The layout is code: `scripts/render_memo.py` draws every block the same way on every run, runs the pre-send checks, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, read the investment thesis from the model, draft the investment overview, confirm both with the analyst, collect their line notes, and write `memo.json`.
+The page is one flat sheet: the title and overview, a stat strip of deal metrics, then a main column (investment thesis, operating statement, sensitivity, optional waterfall) and a rail (unit mix, capitalization, comps). The layout is code: `scripts/render_memo.py` draws every block the same way on every run, runs the pre-send checks, and refuses to export if the numbers don't reconcile. Your job is to gather the data, map it, read the investment thesis from the model, draft the investment overview, confirm both with the analyst, collect their line notes, and write `memo.json`.
 
 ## Prerequisites
 
@@ -80,7 +80,7 @@ No model → leave those blocks `null`. The memo still renders the actuals, with
 **Thesis** ([references/investment-thesis.md](references/investment-thesis.md)):
 
 1. **Read the strategy from the model.** Classify it from the signals (renovations, occupancy path, loss to lease, rent growth, expense and income changes, leverage, exit cap) and name it specifically ("Value-add: interior renovation and lease-up"). If the model has no plan, say "No business plan in the model"; never invent one.
-2. **Size 2 to 4 value drivers** from the model's cells, each a title and one sentence with dollars, units, percentages or months. No adjectives standing in for numbers.
+2. **Size 2 to 4 value drivers** from the model's cells, each a title and one sentence with dollars, units, percentages or months, led by its key figure (`figure`, `figure_label`). No adjectives standing in for numbers.
 3. **Name what the plan depends on**: the single assumption the returns rest on, sized (including cap rate compression when the exit cap is below the going-in).
 4. **Ask the analyst to verify**: one message with your reading of the strategy and drivers, plus their edge (why this deal, why now), which the model can't show. At most 2 or 3 questions; look at the deal record, attached files and anything they point to before asking. A stabilized core deal with no plan needs no questions. Record cells in `thesis.signals` and each driver's `sources`; set `status` to `confirmed` when they agree.
 

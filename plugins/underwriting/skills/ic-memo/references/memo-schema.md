@@ -67,7 +67,7 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
   "thesis": {"status": "draft", "strategy": "Value-add: interior renovation and lease-up",
              "strategy_detail": "Renovate 400 of 555 units over 36 months and bring occupancy to 94% by Year 2.",
              "signals": ["Input!G89:J105 units to be renovated: 400 across Years 1 to 3"],
-             "pillars": [{"title": "Interior renovations", "text": "400 units at $12,500 each ($5.0M) over 36 months.",
+             "pillars": [{"title": "Interior renovations", "figure": "$5.0M", "figure_label": "renovation budget", "text": "400 units at $12,500 each ($5.0M) over 36 months.",
                           "sources": [{"source": "Client model, Input!D89:D105", "kind": "model"}]}],
              "dependency": {"text": "Most of the NOI growth depends on the $175 premium on all 400 units.", "sources": [{"source": "Client model", "kind": "inference"}]}},
   "comps": {"kind": "rent", "source": "How the comp set was chosen and how many qualified.",
@@ -91,6 +91,8 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **`waterfall`**: tiers with LP and GP splits, and returns by partner (`role` is `lp` or `gp`). Leave it `null` when the model has no waterfall. Every figure comes from the model's waterfall; never compute a split or promote.
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
 - **`thesis`** (see [investment-thesis.md](investment-thesis.md)): `strategy` is one specific line; `pillars` are 2 to 4 value drivers, each sized and with `sources` (`kind` `model`, `documented`, `analyst` or `inference`); `dependency` is what the plan rests on. `signals` lists the model cells the strategy was read from. `status` is `draft` or `confirmed`. Sources and signals print in the run summary, never on the memo. Leave `thesis` null for a placeholder.
+- **`pillars[].figure`** (optional): the one number that leads the driver, as the model states it, with a two- or three-word `figure_label`. Without it the driver is numbered.
+- **`layout`** (optional): `editorial` (default: one flat page, a stat strip, the thesis and financials in a main column, unit mix, capitalization and comps in a rail) or `cards` (the earlier card grid). Take it from the brand profile's `defaults.ic_memo.layout` when set.
 - **`hold_cash_flow`** isn't drawn on the one-pager anymore; it feeds the pre-send checks, the DSCR tile and the Word file.
 - **`comps`**: `kind` is `market` (Radix Market Comps, when the MCP has it) or `rent` (Radix rent comp set from the account's deals). Rows are each comp's rent roll totals as the server returns them; percents are percent numbers. `average` is optional and only from the comp set tool's averages. The page shows rent per SF, derived. Leave `comps` null for a placeholder.
 - **The one-pager prints the T12 and the Year 1 pro forma only.** Keep T3 and T1 in `actuals` anyway: the pre-send checks and the Word appendix use them.

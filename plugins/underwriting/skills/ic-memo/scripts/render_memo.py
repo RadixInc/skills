@@ -592,9 +592,10 @@ def build_html(memo, brand, der, S):
 
     # ----- equity waterfall (optional)
     wf_opt = memo.get("waterfall_option", "auto")  # auto: show when the model has one; always; never
-    wf_html = ""
+    wf_html, wf_inner = "", ""
     if wf_opt == "always" and not wf.get("partners"):
-        wf_html = f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span></div>{ph("LP and GP splits by tier, and returns by partner")}</section></div>'
+        wf_inner = ph("LP and GP splits by tier, and returns by partner")
+        wf_html = f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span></div>{wf_inner}</section></div>'
     if wf_opt != "never" and wf.get("partners"):
         tier_rows = "".join(
             f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(t["label"])}</th><td class="rx-rtbl__td">{esc(t.get("hurdle", ""))}</td>'
@@ -622,6 +623,7 @@ def build_html(memo, brand, der, S):
                          f'<th class="rx-rtbl__th rx-rtbl__th--num">IRR</th><th class="rx-rtbl__th rx-rtbl__th--num">Multiple</th>'
                          f'<th class="rx-rtbl__th rx-rtbl__th--num">Promote</th></tr></thead><tbody>'
                          + "".join(prow(x) for x in parts) + prow(tot, " rx-rtbl__tr--total rx-rtbl__tr--total-first") + "</tbody></table></div>")
+        wf_inner = f'<div class="wf">{tiers_html}{partners_html}</div>'
         wf_html = (f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span>'
                    f'<span class="card__meta">{esc(wf.get("structure", ""))}</span></div><div class="wf">{tiers_html}{partners_html}</div></section></div>')
 
@@ -837,6 +839,159 @@ p {{ margin:0; }}
   </div>
 </div>
 <div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
+"""
+
+    # ===== editorial layout: one flat page, a stat strip, a wide main column and a fact rail =====
+    if (memo.get("layout") or (brand.get("defaults", {}).get("ic_memo") or {}).get("layout") or "editorial") == "editorial":
+        def stat(label, value, sub="", lead=False):
+            return (f'<div class="ed-stat{" ed-stat--lead" if lead else ""}"><p class="ed-stat__label">{esc(label)}</p>'
+                    f'<p class="ed-stat__value">{esc(value)}</p><p class="ed-stat__sub">{esc(sub)}</p></div>')
+        stats = []
+        if is_num(req):
+            stats.append(stat("Required equity", S.add(fmt_compact(req)), " · ".join(hero_bits), True))
+        if ret:
+            stats.append(stat("Levered IRR", S.add(fmt_ratio(lev.get("irr"))), irr_cmp))
+            stats.append(stat("Equity multiple", S.add(fmt_mult(lev.get("moic"))), mult_cmp))
+        if is_num(terms.get("going_in_cap_model")):
+            stats.append(stat("Going-in cap", S.add(fmt_ratio(terms.get("going_in_cap_model"), 2)),
+                              f"Pro forma NOI · {S.add(fmt_ratio(t12_cap, 2))} on T12" if is_num(t12_cap) else "Pro forma NOI"))
+        if is_num(ex.get("cap")):
+            stats.append(stat("Exit cap", S.add(fmt_ratio(ex.get("cap"), 2)),
+                              f"{S.add(fmt_compact(ex.get('gross_proceeds')))} sale in Y{terms.get('hold_years')}" if is_num(ex.get("gross_proceeds")) else ""))
+        if dscr:
+            stats.append(stat("Min DSCR", S.add(fmt_mult(min(dscr))), "Lowest year of the hold"))
+        strip_html = f'<div class="ed-strip">{"".join(stats)}</div>' if stats else ph("Required equity, IRR, multiple, going-in and exit cap")
+
+        def sec(title, body, meta=""):
+            return (f'<section class="ed-sec"><div class="ed-sec__head"><h2 class="ed-sec__title">{esc(title)}</h2>'
+                    f'{f"<span class=ed-sec__meta>{esc(meta)}</span>" if meta else ""}</div>{body}</section>')
+
+        # thesis: strategy, then drivers led by their figure, then the dependency as a callout
+        if th.get("pillars"):
+            def tk(text):
+                for tok in NUM_TOKEN.findall(text or ""):
+                    S.add(tok.strip().rstrip(".,;:"))
+                return esc(text or "")
+            drivers = "".join(
+                f'<div class="ed-drv"><div class="ed-drv__fig">{tk(pl.get("figure")) if pl.get("figure") else f"<span class=ed-drv__n>{i}</span>"}'
+                f'{f"<span class=ed-drv__figlabel>{tk(pl.get("figure_label"))}</span>" if pl.get("figure_label") else ""}</div>'
+                f'<div><p class="ed-drv__title">{tk(pl.get("title"))}</p><p class="ed-drv__text">{tk(pl.get("text"))}</p></div></div>'
+                for i, pl in enumerate(th["pillars"][:4], 1))
+            dep = th.get("dependency") or {}
+            ed_thesis = (f'<p class="ed-strategy">{tk(th.get("strategy"))}</p>'
+                         + (f'<p class="ed-detail">{tk(th.get("strategy_detail"))}</p>' if th.get("strategy_detail") else "")
+                         + f'<div class="ed-drivers">{drivers}</div>'
+                         + (f'<div class="ed-dep"><p class="ed-dep__label">What the plan depends on</p><p>{tk(dep.get("text"))}</p></div>' if dep.get("text") else ""))
+        else:
+            ed_thesis = thesis_html
+
+        # rail: unit mix, capitalization as a list, comps
+        if um.get("rows"):
+            def mrow(label, r, cls=""):
+                return (f'<tr class="{cls}"><th>{esc(label)}</th><td>{S.add(fmt_int(r.get("units")))}</td>'
+                        f'<td>{S.money(r.get("in_place_rent")) if is_num(r.get("in_place_rent")) else "-"}</td>'
+                        f'<td>{S.add(fmt_pct(r["occupied_pct"])) if is_num(r.get("occupied_pct")) else "-"}</td></tr>')
+            rail_mix = ('<table class="ed-mini"><thead><tr><th>Unit type</th><th>Units</th><th>In-place</th><th>Occ.</th></tr></thead><tbody>'
+                        + "".join(mrow(unit_type(r), r) for r in um["rows"])
+                        + (mrow("Total / avg", um["total"], "is-total") if um.get("total") else "") + "</tbody></table>")
+        else:
+            rail_mix = mix_html
+        if su.get("uses"):
+            def lv(label, amount, cls=""):
+                return f'<div class="ed-lv{cls}"><span>{esc(label)}</span><span>{S.money(amount)}</span></div>'
+            rail_cap = ('<p class="ed-lv__group">Uses</p>' + "".join(lv(u["label"], u["amount"]) for u in su["uses"])
+                        + lv("Total uses", der["uses_total"], " is-total")
+                        + '<p class="ed-lv__group">Sources</p>' + "".join(lv(x["label"], x["amount"]) for x in su["sources"])
+                        + lv("Total sources", der["sources_total"], " is-total")
+                        + "".join(f'<p class="ed-note">{esc(t)}</p>' for t in cs.get("terms") or []))
+        else:
+            rail_cap = cap_html
+        if crow_list:
+            def crow2(name, sub, r, cls=""):
+                return (f'<tr class="{cls}"><th>{esc(name)}<span class="ed-sub">{esc(sub)}</span></th><td>{S.add(fmt_int(r.get("units"))) if is_num(r.get("units")) else "-"}</td>'
+                        f'<td>{S.money(r.get("in_place_rent")) if is_num(r.get("in_place_rent")) else "-"}</td>'
+                        f'<td>{S.add(fmt_pct(r["occupied_pct"])) if is_num(r.get("occupied_pct")) else "-"}</td></tr>')
+            subj = comps.get("subject") or {}
+            rail_comps = ('<table class="ed-mini"><thead><tr><th>Property</th><th>Units</th><th>Rent</th><th>Occ.</th></tr></thead><tbody>'
+                          + (crow2(f'{deal.get("name")} (subject)', date_label(subj.get("as_of")) if subj.get("as_of") else "", subj, "is-subject") if subj else "")
+                          + "".join(crow2(r.get("name", ""), " · ".join(x for x in [r.get("city"), date_label(r.get("as_of")) if r.get("as_of") else ""] if x), r) for r in crow_list)
+                          + (crow2(comps["average"].get("label") or "Comp average", "", comps["average"], "is-total") if comps.get("average") else "")
+                          + f'</tbody></table><p class="ed-note">{esc(comps.get("source") or "")}</p>')
+        else:
+            rail_comps = comps_html
+
+        main = (sec("Investment thesis", ed_thesis)
+                + sec("Operating statement", ops_html, "T12 from Radix · pro forma from the model")
+                + sec(f"{sens.get('metric', 'IRR')} sensitivity", sens_html, f"{sens.get('col_label', '')} across · {sens.get('row_label', '')} down")
+                + (sec("Equity waterfall", wf_inner, wf.get("structure", "")) if wf_inner else ""))
+        rail = (sec("Unit mix", rail_mix, mix_meta) + sec("Capitalization", rail_cap) + sec("Comps", rail_comps, comps_meta))
+        page_body = f"""
+<div class="ed">
+<header class="ed-head">
+  <div class="ed-head__row">
+    <div><h1 class="ed-title">{esc(deal.get('name'))}</h1><p class="ed-facts">{esc(' · '.join(facts))}</p></div>
+    <div class="ed-head__aside">{brand_mark}<p class="ed-date">{esc(' · '.join(marks))}</p><p class="ed-date">Investment committee · {esc(date_label(memo.get('memo_date', date.today().isoformat())))}</p></div>
+  </div>
+  {f'<p class="ed-overview">{esc(com["text"])}</p>' if com.get("text") else ''}
+  {f'<div class="sample">{esc(memo.get("sample_note") or "Layout preview: some figures are illustrative, not from the client model.")}</div>' if memo.get('sample') else ''}
+</header>
+{strip_html}
+<div class="ed-body"><div class="ed-main">{main}</div><aside class="ed-rail">{rail}</aside></div>
+<div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
+</div>
+"""
+        css += f"""
+html, body {{ background:#fff !important; }}
+body {{ padding:0.42in 0.45in 0.32in !important; }}
+.ed-head__row {{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }}
+.ed-title {{ margin:0; font-size:20pt; font-weight:700; letter-spacing:-0.02em; color:#181d27; line-height:1.1; }}
+.ed-facts {{ margin-top:4px; font-size:7.4pt; color:#414651; font-weight:500; }}
+.ed-head__aside {{ text-align:right; }}
+.ed-date {{ font-size:6.6pt; color:#717680; font-weight:500; margin-top:2px; }}
+.ed-overview {{ margin-top:10px; font-size:8.6pt; line-height:1.5; color:#252b37; max-width:88%; }}
+.ed-strip {{ display:flex; margin-top:14px; border-top:1.5px solid #181d27; border-bottom:1px solid #eaeaf0; }}
+.ed-stat {{ flex:1; padding:9px 12px 9px 0; min-width:0; }}
+.ed-stat + .ed-stat {{ padding-left:12px; border-left:1px solid #eaeaf0; }}
+.ed-stat--lead {{ flex:1.5; }}
+.ed-stat__label {{ font-size:6.4pt; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#717680; }}
+.ed-stat__value {{ font-size:16pt; font-weight:700; letter-spacing:-0.01em; color:#181d27; line-height:1.25; margin-top:2px; }}
+.ed-stat--lead .ed-stat__value {{ font-size:22pt; color:{primary}; }}
+.ed-stat__sub {{ font-size:6.4pt; color:#717680; font-weight:500; margin-top:1px; }}
+.ed-body {{ display:grid; grid-template-columns: 1.75fr 1fr; gap:0 22px; margin-top:4px; }}
+.ed-rail {{ border-left:1px solid #eaeaf0; padding-left:18px; }}
+.ed-sec {{ padding-top:12px; break-inside:avoid; }}
+.ed-sec__head {{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #eaeaf0; }}
+.ed-sec__title {{ margin:0; font-size:8.6pt; font-weight:700; color:#181d27; }}
+.ed-sec__meta {{ font-size:6.3pt; color:#a4a7ae; font-weight:500; }}
+.ed-strategy {{ font-size:12pt; font-weight:700; color:{primary}; letter-spacing:-0.01em; line-height:1.25; }}
+.ed-detail {{ margin-top:2px; font-size:7.4pt; color:#414651; }}
+.ed-drivers {{ margin-top:8px; display:flex; flex-direction:column; }}
+.ed-drv {{ display:grid; grid-template-columns: 1.05in 1fr; gap:12px; padding:6px 0; border-top:1px solid #f0f0f5; }}
+.ed-drv:first-child {{ border-top:0; }}
+.ed-drv__fig {{ font-size:13pt; font-weight:700; color:#181d27; letter-spacing:-0.01em; line-height:1.2; }}
+.ed-drv__figlabel {{ display:block; font-size:6.2pt; font-weight:500; color:#717680; letter-spacing:0; margin-top:1px; }}
+.ed-drv__n {{ display:inline-flex; width:18px; height:18px; border-radius:50%; background:{tint}; color:{primary}; font-size:8pt; align-items:center; justify-content:center; }}
+.ed-drv__title {{ font-size:7.6pt; font-weight:700; color:#252b37; }}
+.ed-drv__text {{ font-size:7.1pt; line-height:1.45; color:#414651; }}
+.ed-dep {{ margin-top:8px; padding:6px 0 6px 10px; border-left:2.5px solid {primary}; font-size:7.1pt; line-height:1.45; color:#252b37; }}
+.ed-dep__label {{ font-size:6.3pt; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:{primary}; margin-bottom:2px; }}
+.ed .rx-rtbl {{ border:0; border-radius:0; }}
+.ed .rx-rtbl th, .ed .rx-rtbl td {{ border-right-width:0 !important; }}
+.ed .rx-rtbl__th {{ border-bottom:1px solid #d5d7da !important; background:#fff !important; }}
+.ed-mini {{ width:100%; border-collapse:collapse; font-size:6.9pt; table-layout:fixed; }}
+.ed-mini th, .ed-mini td {{ padding:3px 0; border-bottom:1px solid #f0f0f5; text-align:right; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.ed-mini th:first-child {{ text-align:left; width:46%; white-space:normal; }}
+.ed-mini thead th {{ font-size:6.2pt; font-weight:700; color:#717680; border-bottom:1px solid #d5d7da; }}
+.ed-mini tbody th {{ font-weight:600; color:#252b37; }}
+.ed-mini tr.is-total > * {{ font-weight:700; border-top:1px solid #d5d7da; border-bottom:0; }}
+.ed-mini tr.is-subject > * {{ background:{tint}; }}
+.ed-sub {{ display:block; font-size:5.9pt; font-weight:500; color:#a4a7ae; }}
+.ed-lv {{ display:flex; justify-content:space-between; gap:8px; padding:2.5px 0; font-size:7pt; border-bottom:1px solid #f0f0f5; color:#252b37; }}
+.ed-lv.is-total {{ font-weight:700; border-bottom:1px solid #d5d7da; }}
+.ed-lv__group {{ margin-top:6px; font-size:6.2pt; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#717680; }}
+.ed-lv__group:first-child {{ margin-top:0; }}
+.ed-note {{ margin-top:4px; font-size:6.2pt; line-height:1.4; color:#717680; }}
+.ed .foot {{ margin-top:14px; padding-top:6px; border-top:1px solid #eaeaf0; }}
 """
     return f"<!doctype html><html><head><meta charset='utf-8'><title>{esc(deal.get('name'))} IC memo</title><style>{css}</style></head><body>{page_body}</body></html>"
 

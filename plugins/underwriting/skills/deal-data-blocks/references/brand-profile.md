@@ -20,6 +20,7 @@ One JSON document per account (optionally per user) that every Radix deal docume
 | `firm.display_name` | string | Used in headers and file names |
 | `firm.contact_lines` | string[] | For OM and BOV contact pages |
 | `disclaimer` | string | Client-owned text, printed in the footer verbatim |
+| `defaults.ic_memo.layout` | `editorial` \| `cards` | IC memo page layout; editorial is the default |
 | `defaults.<doc>.format` | IC memo: `pdf` \| `docx` \| `pdf+docx`. Data blocks: `pptx` \| `png` \| `pptx+png`. Or null | Null means ask every run. `<doc>` is `ic_memo` or `data_blocks` |
 | `defaults.ic_memo.variant` | `one_pager` \| `full` | |
 | `defaults.ic_memo.waterfall` | `auto` \| `always` \| `never` | Equity waterfall on the IC memo. `auto` shows it when the model has one |

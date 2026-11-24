@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ic-memo`: new default `editorial` layout: one flat page with a stat strip (required equity leading), a main column (thesis with drivers led by their key figure, operating statement, sensitivity, waterfall) and a fact rail (unit mix, capitalization as a list, comps). The card grid stays available as `layout: "cards"`.
 - `ic-memo`: a Unit mix card (by bed / bath) sits above the comps; the unit-mix line under the address is gone; the investment overview is now two plain sentences (what is bought and how, and the plan at a high level), with the depth moved to the thesis card and its single round of questions.
 - `ic-memo`: "NOI over the hold" is replaced by an Investment thesis card: a specific strategy, 2 to 4 value drivers sized from the model's setup (renovation schedule and budget, occupancy and loss-to-lease paths, rent growth, expenses, leverage, exit cap) and what the plan depends on, confirmed by the analyst in the same round as the overview. Sources go to the run summary; the gate requires every driver to cite one.
 - `ic-memo`: the operating statement shows only the T12 and the Year 1 pro forma (T3 and T1 still feed the pre-send checks); the space beside it is a comps card, from Radix rent comps today and Radix Market Comps once the MCP offers them.
