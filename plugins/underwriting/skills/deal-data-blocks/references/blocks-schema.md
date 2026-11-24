@@ -1,8 +1,8 @@
 # blocks.json (`radix.deal_blocks/v1`)
 
-The agent writes this file; `scripts/build_blocks.js` turns it into the blocks. Include only the data the picked blocks need; a picked block whose data is missing is skipped and reported.
+The agent writes this file; `scripts/build_blocks.js` turns it into the blocks. The offering-memorandum skill's `om.json` holds the same fields, plus the OM's own pages. Include only the data the picked blocks need; a picked block whose data is missing is skipped and reported.
 
-`deal`, `sources` and `snapshot` use the same shapes as the ic-memo skill's `radix.ic_memo/v2`. The operating statement uses its own, finer **categories** (below), because OMs show more lines than the IC memo's groups.
+`deal`, `sources` and `snapshot` take the shapes shown below (the same as the IC memo's). The operating statement uses its own, finer **categories** (below), because OMs show more lines than the IC memo's groups.
 
 ```json
 {

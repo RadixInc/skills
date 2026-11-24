@@ -18,10 +18,11 @@ One JSON document per account (optionally per user) that every Radix deal docume
 | `colors.accent_tint` | hex | Snapshot tiles, NOI row, grid headers. Keep it light |
 | `fonts.heading`, `fonts.body` | string | From the approved list. v1: `Manrope` |
 | `firm.display_name` | string | Used in headers and file names |
-| `firm.contact_lines` | string[] | For OM and BOV contact pages |
-| `disclaimer` | string | Client-owned text, printed in the footer verbatim |
+| `firm.contact_lines` | string[] | Broker team for the OM and BOV contact pages, one line each ("Jane Doe, Senior Managing Director · jane@firm.com · 602 555 0100") |
+| `disclaimer` | string | Client-owned text for the IC memo footer, printed verbatim |
 | `defaults.ic_memo.layout` | `editorial` \| `cards` | IC memo page layout; editorial is the default |
-| `defaults.<doc>.format` | IC memo: `pdf` \| `docx` \| `pdf+docx`. Data blocks: `pptx` \| `png` \| `pptx+png`. Or null | Null means ask every run. `<doc>` is `ic_memo` or `data_blocks` |
+| `om_disclaimer` | string | Client-owned confidentiality and disclaimer text for the OM's last page, printed verbatim |
+| `defaults.<doc>.format` | IC memo: `pdf` \| `docx` \| `pdf+docx`. Data blocks: `pptx` \| `png` \| `pptx+png`. OM: `pptx` \| `pdf` \| `pptx+pdf`. Or null | Null means ask every run. `<doc>` is `ic_memo`, `data_blocks` or `om` |
 | `defaults.ic_memo.variant` | `one_pager` \| `full` | |
 | `defaults.ic_memo.waterfall` | `auto` \| `always` \| `never` | Equity waterfall on the IC memo. `auto` shows it when the model has one |
 | `updated_at` | date | |
@@ -35,11 +36,11 @@ One JSON document per account (optionally per user) that every Radix deal docume
 
 When asking for brand colors, list them by role so the user knows where each appears:
 
-| Role | IC memo | Data blocks |
-|---|---|---|
-| **Primary** | Wordmark, NOI bars, base-case cell | Main chart bars, snapshot figures, the subject property in comparison charts |
-| **Accent** | Heading markers and rules | Second chart series (in-place rent, revenue) |
-| **Accent tint** | Pro forma column, highlighted rows | NOI rows, the subject property's rows in the comps table (keep it very light) |
+| Role | IC memo | Data blocks | OM |
+|---|---|---|---|
+| **Primary** | Wordmark, NOI bars, base-case cell | Main chart bars, snapshot figures, the subject property in comparison charts | Cover and section divider background, highlight markers, plus everything the data blocks use it for |
+| **Accent** | Heading markers and rules | Second chart series (in-place rent, revenue) | Title rule on every slide, plus the data blocks' uses |
+| **Accent tint** | Pro forma column, highlighted rows | NOI rows, the subject property's rows in the comps table (keep it very light) | Offering terms panel, plus the data blocks' uses |
 
 The users can give colors as hex codes in chat; the agent writes them into `brand.json`.
 

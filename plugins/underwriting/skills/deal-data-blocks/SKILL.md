@@ -1,15 +1,15 @@
 ---
 name: deal-data-blocks
-description: Turn a Radix deal's data into ready-to-paste blocks for the user's own OM, BOV, pitch book or investor deck - property snapshot, unit mix by bed/bath, rents vs. market, historical operating summary, operating statement (actuals to pro forma with the client's model), pro forma cash flow and assumptions, and rent comps. Each block always looks the same and every figure ties to Radix or the client's model, delivered as editable PowerPoint slides and/or PNG images. Shows the user the catalog of what Radix can supply before building. Use whenever a user wants Radix numbers in a document they are making (an OM, offering memo, BOV, broker opinion of value, marketing package, deck, teaser), asks what Radix data can go into a document, or asks for a unit mix, rent roll summary, T12 or comps "for my OM", even if they don't say "blocks". Requires the Radix Underwriting MCP.
+description: Turn a Radix deal's data into ready-to-paste blocks for the user's own OM, BOV, pitch book or investor deck - property snapshot, unit mix by bed/bath, rents vs. market, historical operating summary, operating statement (actuals to pro forma with the client's model), pro forma cash flow and assumptions, and rent comps. Each block always looks the same and every figure ties to Radix or the client's model, delivered as editable PowerPoint slides and/or PNG images. Shows the user the catalog of what Radix can supply before building. Use whenever a user wants Radix numbers in a document they are making (an OM, offering memo, BOV, broker opinion of value, marketing package, deck, teaser), asks what Radix data can go into a document, or asks for a unit mix, rent roll summary, T12 or comps "for my OM", even if they don't say "blocks". For a finished OM built by Radix, use offering-memorandum. Requires the Radix Underwriting MCP.
 ---
 
 # Deal data blocks
 
 Brokers and analysts already have their own OM, BOV and deck templates. What they don't want to do is retype the rent roll and the T12 into them. This skill gives them Radix's data as **blocks**: fixed, self-contained pieces (a title, the subject line, the content, the source line) that look the same for every deal and paste straight into their document. Because the design never changes, a user who has checked a block once can trust every block after it.
 
-The skill doesn't build the document. It shows what Radix can supply, builds the blocks the user picks, and stops.
+The skill doesn't build the document. It shows what Radix can supply, builds the blocks the user picks, and stops. If the user wants a finished OM instead, use the offering-memorandum skill, which builds the whole deck around these same blocks.
 
-The design is code: `scripts/build_blocks.js` draws every block the same way on every run and refuses to export if the numbers don't reconcile. Your job is to show the catalog, gather the data and write `blocks.json`.
+The design is code: `scripts/blocks_lib.js` draws every block the same way on every run, and `scripts/build_blocks.js` refuses to export if the numbers don't reconcile. The offering-memorandum skill ships an exact copy of `blocks_lib.js`, so a block looks the same in a Radix-built OM; edit the copy here and copy it over (the repo validator fails when they differ). Your job is to show the catalog, gather the data and write `blocks.json`.
 
 ## Prerequisites
 

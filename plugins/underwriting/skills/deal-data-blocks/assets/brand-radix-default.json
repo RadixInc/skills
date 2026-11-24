@@ -26,6 +26,7 @@
     "contact_lines": []
   },
   "disclaimer": "Prepared for internal investment committee review. Actuals and the rent roll are from Radix; the pro forma, returns and capitalization are from the client's model.",
+  "om_disclaimer": "This Offering Memorandum is provided for information only and does not constitute an offer to sell. The financial figures are drawn from the property's operating statements and rent roll as normalized in Radix and from the broker's pro forma; they are not guaranteed. Prospective buyers should conduct their own due diligence.",
   "defaults": {
     "ic_memo": {
       "format": null,
@@ -33,7 +34,10 @@
     },
     "data_blocks": {
       "format": null
+    },
+    "om": {
+      "format": null
     }
   },
-  "updated_at": "2026-11-20"
+  "updated_at": "2026-11-24"
 }
