@@ -357,6 +357,14 @@ def run_gate(memo, der, shown):
     if any(memo.get(k) for k in ("proforma", "returns", "capital_stack", "sources_uses", "sensitivity", "hold_cash_flow")):
         check("Client model file is named", bool((src.get("client_model") or {}).get("file")))
 
+    comps = memo.get("comps") or {}
+    if comps.get("rows"):
+        check("Comps: each comp is named and dated, and the comp set's source is stated",
+              all(r.get("name") and r.get("as_of") for r in comps["rows"]) and bool(comps.get("source")))
+        if comps.get("subject") and is_num((memo.get("snapshot") or {}).get("occupancy_pct")) and is_num(comps["subject"].get("occupied_pct")):
+            check("Comps: the subject row matches the rent roll occupancy",
+                  abs(comps["subject"]["occupied_pct"] - memo["snapshot"]["occupancy_pct"]) < 0.05)
+
     for name, text in [("Investment overview", (memo.get("commentary") or {}).get("text") or "")] + \
                       [(f"Note on {k}", n) for k, n in ((memo.get("proforma") or {}).get("notes") or {}).items() if n]:
         unmatched = []
@@ -634,27 +642,22 @@ def build_html(memo, brand, der, S):
         wf_html = (f'<div class="grid"><section class="card"><div class="card__head"><span class="card__title">Equity waterfall</span>'
                    f'<span class="card__meta">{esc(wf.get("structure", ""))}</span></div><div class="wf">{tiers_html}{partners_html}</div></section></div>')
 
-    # ----- operating statement (report table; pro forma is the subject column)
-    cols = act.get("columns", [])
+    # ----- operating statement: T12 next to the Year 1 pro forma (the subject column). T3 and T1 stay in
+    # memo.json for the pre-send checks and the Word appendix, but the one-pager shows only these two.
+    all_cols = act.get("columns", [])
+    cols = [c for c in all_cols if c["key"] == "T12"] or all_cols[:1]
     has_pf = bool(pf)
     notes = {k: v for k, v in (pf.get("notes") or {}).items() if v}
     has_notes = bool(notes)
-    ncol = len(cols) + 1 + (2 if has_pf else 0) + (1 if has_notes else 0)
+    ncol = len(cols) + 1 + (1 if has_pf else 0) + (1 if has_notes else 0)
     head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{esc(c["label"])}</th>' for c in cols)
     if has_pf:
-        head += f'<th class="rx-rtbl__th rx-rtbl__th--num rx-rtbl__th--subject">{esc(pf.get("label", "Y1 pro forma"))}</th><th class="rx-rtbl__th rx-rtbl__th--num">Change</th>'
+        head += f'<th class="rx-rtbl__th rx-rtbl__th--num rx-rtbl__th--subject">{esc(pf.get("label", "Y1 pro forma"))}</th>'
     if has_notes:
         head += '<th class="rx-rtbl__th">Notes</th>'
 
     def note_td(key):
         return f'<td class="rx-rtbl__td rx-rtbl__td--note">{esc(notes.get(key, ""))}</td>' if has_notes else ""
-
-    def change_txt(p, a):
-        if not (is_num(p) and is_num(a)):
-            return "-"
-        c = p - a
-        S.money(c)
-        return S.add(("+" if c > 0 else "-" if c < 0 else "") + fmt_compact(abs(c))) if abs(c) >= 1 else "$0"
 
     def orow(key, label, cls=""):
         if key in ("egr", "opex", "noi"):
@@ -663,8 +666,7 @@ def build_html(memo, brand, der, S):
             vals, p = [der["groups"][key].get(c["key"]) for c in cols], (pf.get("groups") or {}).get(key)
         tds = "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.money(v)}</td>' for v in vals)
         if has_pf:
-            a12 = (act.get(key) or {}).get("T12") if key in ("egr", "opex", "noi") else der["groups"][key].get("T12")
-            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.money(p)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{change_txt(p, a12)}</td>'
+            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.money(p)}</td>'
         return f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}{note_td(key)}</tr>'
 
     def grp(title):
@@ -674,7 +676,7 @@ def build_html(memo, brand, der, S):
         blanks = "".join('<td class="rx-rtbl__td"></td>' for _ in cols[1:])
         tds = f'<td class="rx-rtbl__td rx-rtbl__td--num">{esc(actual_txt)}</td>{blanks}'
         if has_pf:
-            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{esc(pf_txt)}</td><td class="rx-rtbl__td rx-rtbl__td--num">{esc(change)}</td>'
+            tds += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{esc(pf_txt)}</td>'
         return f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>{tds}{note_td(key)}</tr>'
     body = grp("Revenue") + "".join(orow(k, l) for k, l in REV_GROUPS) + orow("egr", "Effective gross revenue", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
     body += grp("Operating expenses") + "".join(orow(k, l) for k, l in EXP_GROUPS) + orow("opex", "Total operating expenses", " rx-rtbl__tr--total rx-rtbl__tr--total-first")
@@ -682,27 +684,55 @@ def build_html(memo, brand, der, S):
     ops_extra = ""
     if is_num(snap.get("in_place_rent")):
         r_pf = pf.get("effective_rent")
-        ops_extra += single("Rent / unit / mo (rent roll)", S.money(snap["in_place_rent"]), S.money(r_pf) if is_num(r_pf) else "-",
-                            change_txt(r_pf, snap["in_place_rent"]) if is_num(r_pf) else "", "rent")
+        ops_extra += single("Rent / unit / mo", S.money(snap["in_place_rent"]), S.money(r_pf) if is_num(r_pf) else "-", "", "rent")
     if is_num(snap.get("occupancy_pct")):
         o_pf = pf.get("physical_occupancy")
-        d_o = f"{o_pf * 100 - snap['occupancy_pct']:+.1f} pts" if is_num(o_pf) else ""
-        S.add(d_o)
-        ops_extra += single("Occupancy (rent roll)", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", d_o, "occupancy")
+        ops_extra += single("Occupancy", S.add(fmt_pct(snap["occupancy_pct"])), S.add(fmt_ratio(o_pf)) if is_num(o_pf) else "-", "", "occupancy")
     if is_num(terms.get("price")):
         caps = "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{S.add(fmt_ratio(der["cap"].get(c["key"]), 2))}</td>' for c in cols)
         if has_pf:
             pf_cap = pf["noi"] / terms["price"] if is_num(pf.get("noi")) else None
-            caps += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.add(fmt_ratio(pf_cap, 2))}</td><td class="rx-rtbl__td"></td>'
+            caps += f'<td class="rx-rtbl__td rx-rtbl__td--num rx-rtbl__td--subject">{S.add(fmt_ratio(pf_cap, 2))}</td>'
         ops_extra += f'<tr class="rx-rtbl__tr"><th scope="row" class="rx-rtbl__rowlabel">Cap rate on purchase price</th>{caps}{note_td("cap_rate")}</tr>'
     if ops_extra:
         body += grp("Operations and pricing") + ops_extra
-    windows = "; ".join(f'{c["label"]} {c["window"]}' for c in cols if c.get("window"))
+    windows = "; ".join(f'{c["label"]} {c["window"]}' for c in cols if c.get("window")) + "; rent and occupancy from the rent roll"
     num_cols = ncol - 1 - (1 if has_notes else 0)
-    ops_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:{18 if has_notes else 24}%">' + "<col>" * num_cols +
-                ('<col style="width:28%">' if has_notes else "") +
+    ops_html = (f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:{34 if has_notes else 50}%">' + "<col>" * num_cols +
+                ('<col style="width:36%">' if has_notes else "") +
                 f'</colgroup><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">$ annual</th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
                 f'<p class="rx-chart-note">{esc(windows)}.</p>')
+
+    # ----- comps: the subject next to comparable properties (market comps when the MCP has them, else Radix rent comps)
+    comps = memo.get("comps") or {}
+    crow_list = comps.get("rows") or []
+    if crow_list:
+        def psf(r):
+            return S.add(f"${r['in_place_rent'] / r['avg_sf']:.2f}") if is_num(r.get("in_place_rent")) and r.get("avg_sf") else "-"
+
+        def ctr(r, cls="", name=None):
+            sub = " · ".join(x for x in [r.get("city"), date_label(r.get("as_of")) if r.get("as_of") else ""] if x)
+            label = f'{esc(name or r.get("name", ""))}' + (f'<span class="cmp__sub">{esc(sub)}</span>' if sub else "")
+            cells = [S.add(fmt_int(r.get("units"))) if is_num(r.get("units")) else "-",
+                     str(r["year_built"]) if r.get("year_built") else "-",
+                     S.add(fmt_int(r.get("avg_sf"))) if is_num(r.get("avg_sf")) else "-",
+                     S.money(r.get("in_place_rent")) if is_num(r.get("in_place_rent")) else "-", psf(r),
+                     S.add(fmt_pct(r["occupied_pct"])) if is_num(r.get("occupied_pct")) else "-"]
+            return (f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{label}</th>' +
+                    "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{c}</td>' for c in cells) + "</tr>")
+        subj = comps.get("subject") or {}
+        cbody = ctr(subj, " rx-rtbl__tr--subject", f'{deal.get("name")} (subject)') if subj else ""
+        cbody += "".join(ctr(r) for r in crow_list)
+        if comps.get("average"):
+            cbody += ctr(comps["average"], " rx-rtbl__tr--total rx-rtbl__tr--total-first", comps["average"].get("label") or "Comp average")
+        comps_html = ('<div class="rx-rtbl rx-rtbl--dense cmp"><table class="rx-rtbl__table"><colgroup><col style="width:36%"><col><col><col><col><col><col></colgroup>'
+                      '<thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">Property</th>' +
+                      "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{h}</th>' for h in ["Units", "Built", "Avg SF", "Rent", "$/SF", "Occ."]) +
+                      f'</tr></thead><tbody>{cbody}</tbody></table></div>'
+                      f'<p class="rx-chart-note">{esc(comps.get("source") or "")}</p>')
+        comps_meta = "Market comps" if comps.get("kind") == "market" else "Rent comps from Radix"
+    else:
+        comps_html, comps_meta = ph("Comparable properties: in-place rent, rent per SF and occupancy next to the subject", "Radix comps"), ""
 
     css = f"""
 {font_face_css()}
@@ -735,6 +765,7 @@ p {{ margin:0; }}
 .grid {{ display:grid; gap:10px; margin-top:10px; }}
 .g-a {{ grid-template-columns: 1fr 1.32fr; }}
 .g-b {{ grid-template-columns: 1fr 1fr; }}
+.g-c {{ grid-template-columns: 1fr 1.15fr; align-items:start; }}
 .rx-rtbl td.rx-rtbl__td--note {{ white-space:normal; color:#414651; font-size:6.3pt; line-height:1.3; padding:2px 6px; }}
 .sample {{ margin-top:8px; padding:5px 9px; border:1px solid #fedf89; background:#fffaeb; color:#b54708; border-radius:8px; font-weight:600; }}
 .wf {{ display:grid; grid-template-columns: 1fr 1.6fr; gap:10px; align-items:start; }}
@@ -779,6 +810,8 @@ p {{ margin:0; }}
 .rx-chart-note {{ margin-top:4px; font-size:6.2pt; line-height:1.45; color:#717680; }}
 .rx-alert {{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid #fedf89; background:#fffaeb; border-radius:8px; color:#414651; }}
 .rx-alert b {{ font-size:6.4pt; font-weight:700; color:#b54708; }}
+.cmp .rx-rtbl__rowlabel {{ height:auto; padding:2px 6px; white-space:normal; line-height:1.25; }}
+.cmp__sub {{ display:block; font-size:5.8pt; font-weight:500; color:#a4a7ae; }}
 .foot {{ display:flex; justify-content:space-between; gap:16px; margin-top:9px; font-size:5.8pt; color:#a4a7ae; }}
 """
 
@@ -805,8 +838,9 @@ p {{ margin:0; }}
   <section class="card"><div class="card__head"><span class="card__title">{esc(sens.get('metric', 'IRR'))} sensitivity</span><span class="card__meta">{esc(sens.get('col_label', ''))} across · {esc(sens.get('row_label', ''))} down</span></div>{sens_html}</section>
 </div>
 {wf_html}
-<div class="grid">
-  <section class="card"><div class="card__head"><span class="card__title">Operating statement</span><span class="card__meta">Actuals from Radix · pro forma from the model</span></div>{ops_html}</section>
+<div class="grid g-c">
+  <section class="card"><div class="card__head"><span class="card__title">Operating statement</span><span class="card__meta">T12 from Radix · pro forma from the model</span></div>{ops_html}</section>
+  <section class="card"><div class="card__head"><span class="card__title">Comps</span><span class="card__meta">{esc(comps_meta)}</span></div>{comps_html}</section>
 </div>
 <div class="foot"><span>{esc(brand.get('disclaimer') or '')}</span><span>{esc(memo.get('account', ''))}</span></div>
 """
@@ -964,9 +998,10 @@ def write_docx(memo, brand, der, docx_path):
               [[rl] + [fmt_ratio(v) for v in rv] for rl, rv in zip(sens["rows"], sens["values"])])
         small(sens.get("title", ""))
 
-    heading("Operating statement · actual to pro forma")
+    heading("Operating statement · T12 to pro forma")
     dnotes = {k: v for k, v in (pf.get("notes") or {}).items() if v}
-    hdr = [""] + [c["label"] for c in cols] + ([pf.get("label", "Y1 pro forma"), "Change vs T12"] if pf else []) + (["Notes"] if dnotes else [])
+    cols = [c for c in cols if c["key"] == "T12"] or cols[:1]
+    hdr = [""] + [c["label"] for c in cols] + ([pf.get("label", "Y1 pro forma")] if pf else []) + (["Notes"] if dnotes else [])
     rows, bold, shaded = [], [], []
 
     def add(key, label, b=False, s=False):
@@ -976,9 +1011,7 @@ def write_docx(memo, brand, der, docx_path):
             vals, p_ = [der["groups"][key].get(c["key"]) for c in cols], (pf.get("groups") or {}).get(key)
         row = [label] + [fmt_money(v) for v in vals]
         if pf:
-            a12 = vals[[c["key"] for c in cols].index("T12")] if "T12" in [c["key"] for c in cols] else None
-            chg = p_ - a12 if is_num(p_) and is_num(a12) else None
-            row += [fmt_money(p_), (("+" if chg > 0 else "-" if chg < 0 else "") + fmt_money(abs(chg))) if is_num(chg) else "-"]
+            row.append(fmt_money(p_))
         if dnotes:
             row.append(dnotes.get(key, ""))
         rows.append(row)
@@ -994,6 +1027,24 @@ def write_docx(memo, brand, der, docx_path):
     add("opex", "Total operating expenses", True)
     add("noi", "Net operating income", True, True)
     table(hdr, rows, bold=bold, shaded=shaded)
+
+    comps = memo.get("comps") or {}
+    if comps.get("rows"):
+        heading("Comps · " + ("market comps" if comps.get("kind") == "market" else "rent comps from Radix"))
+
+        def crow(r, name):
+            rent, sf = r.get("in_place_rent"), r.get("avg_sf")
+            return [name, fmt_int(r.get("units")) if is_num(r.get("units")) else "-", str(r.get("year_built") or "-"),
+                    fmt_int(sf) if is_num(sf) else "-", fmt_money(rent) if is_num(rent) else "-",
+                    f"${rent / sf:.2f}" if is_num(rent) and sf else "-", fmt_pct(r["occupied_pct"]) if is_num(r.get("occupied_pct")) else "-"]
+        crows = ([crow(comps["subject"], f"{memo['deal'].get('name')} (subject)")] if comps.get("subject") else [])
+        crows += [crow(r, r.get("name", "")) for r in comps["rows"]]
+        if comps.get("average"):
+            crows.append(crow(comps["average"], comps["average"].get("label") or "Comp average"))
+        table(["Property", "Units", "Built", "Avg SF", "In-place rent", "Rent / SF", "Occ."], crows,
+              bold=[len(crows) - 1] if comps.get("average") else [], shaded=[0] if comps.get("subject") else [])
+        if comps.get("source"):
+            small(comps["source"])
 
     hcf = memo.get("hold_cash_flow") or {}
     if hcf.get("noi"):

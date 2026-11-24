@@ -10,7 +10,7 @@ An IC memo answers one question for the committee: should we bid, and at what pr
 1. **Page head**: the property, memo type, structure and hold as plain text, and the investment overview (about 100 to 150 words: the opportunity, the thesis, the plan and the main consideration).
 2. **Deal metrics and NOI over the hold**: required equity first (the cash to close), then levered IRR, multiple, going-in and exit cap; NOI by year from the model next to the T12 actual.
 3. **Capitalization and sensitivity**: sources and uses with debt terms; IRR by exit cap and hold with the base case highlighted. Optionally the **equity waterfall**: LP and GP splits by tier and returns by partner, per client.
-4. **Operating statement**: T12, T3 and T1 actuals from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given.
+4. **Operating statement and comps**: the T12 from Radix next to the Year 1 pro forma, plus rent, occupancy and cap rates, with the analyst's note on each line when given; beside it, the subject next to comparable properties (in-place rent, rent per SF, occupancy). T3 and T1 are pulled for the pre-send checks but not printed.
 
 Risks and mitigants are the analyst's judgment and belong in the full IC memo, not the screening one-pager. Before the memo goes out, the renderer runs fixed pre-send checks (see [references/pre-send-checks.md](references/pre-send-checks.md)); you report them to the analyst, and they never print on the memo.
 
@@ -60,6 +60,8 @@ No mapped rent roll or actuals statement → say so and offer to continue with w
 - Totals from `metrics.<metric>.egr` / `opex` / `noi`.
 - `actuals.monthly`: the 12 months of `summaryByColumn` (EGR, OpEx, NOI) for the sparklines.
 - T12 null (under 12 months): drop that column, keep what exists, and say so.
+
+**Comps:** market comps from Radix Market Comps once the MCP offers them (`comps.kind: "market"`). Until then, `get_rent_comp_set` with `dealFilter: {"market": "<the deal's market>"}` and a `dataWindow` starting about 18 months back; drop the subject. For each comp (up to 6, newest data first), `get_floor_plan_summary` (unitMixBath) for its total units, avg SF, in-place rent and occupancy, plus `get_deal_details` with `include: ["property"]` for year built. Run comp sets one at a time. Put the subject's rent roll totals in `comps.subject`, and say in `comps.source` how the set was chosen and how many qualified. Only add `comps.average` from the comp set tool's own averages, never one you compute. Fewer than 3 comps: say so in the reply.
 
 ## Step 4: Pro forma and returns from the client's model
 

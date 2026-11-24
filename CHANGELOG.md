@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ic-memo`: the operating statement shows only the T12 and the Year 1 pro forma (T3 and T1 still feed the pre-send checks); the space beside it is a comps card, from Radix rent comps today and Radix Market Comps once the MCP offers them.
 - `ic-memo`: the page-head summary is now an investment overview (about 100 to 150 words) drafted with the analyst: discovery from the deal record, model and attached files first, depth set by whether there's a business plan (stabilized core deals get a short factual overview and no questions), at most 2 or 3 questions in one message, sources recorded in the run summary, approved text kept on reruns. Brand colors are kept readable (contrast guard), and the default disclaimer no longer calls the summary a draft.
 - `deal-data-blocks` (new): Radix data as fixed, ready-to-paste blocks for the user's own OM, BOV or deck, in place of a generated OM. A catalog of eight blocks (property snapshot, unit mix by bed / bath, rents vs. market, operating history, operating statement or actuals to pro forma, pro forma cash flow, pro forma assumptions, rent comps), each with a fixed frame and design, as editable PowerPoint slides and PNGs, with an accuracy gate. No drafted text on any block.
 - `ic-memo`: unit mix is now by bed / bath (unitMixBath).
