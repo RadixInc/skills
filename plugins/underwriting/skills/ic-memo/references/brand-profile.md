@@ -1,11 +1,11 @@
 # Brand profile (`radix.brand_profile/v1`)
 
-One JSON document per account (optionally per user) that every Radix deal document reads: IC memo, OM, BOV and template push. It is a plain JSON file the user keeps, so the same file works in any agent.
+One JSON document per account (optionally per user) that the IC memo reads for colors, logo, firm name and disclaimer. It is a plain JSON file the user keeps, so the same file works in any agent.
 
 ## Fields
 
 | Field | Type | Notes |
-|---|---|---|
+|---|---|
 | `schema` | string | Always `radix.brand_profile/v1` |
 | `profile_id` | string | Stable id |
 | `name` | string | Shown to the user ("Acme Capital brand") |
@@ -16,31 +16,29 @@ One JSON document per account (optionally per user) that every Radix deal docume
 | `colors.primary` | hex | Header band and section headings |
 | `colors.accent` | hex | Rules, markers, highlights |
 | `colors.accent_tint` | hex | Snapshot tiles, NOI row, grid headers. Keep it light |
-| `fonts.heading`, `fonts.body` | string | From the approved list. v1: `Manrope`. PowerPoint outputs (data blocks, OM) use these only when they are Arial, Calibri, Cambria or Georgia, since the file opens on other machines; otherwise headings use Georgia and body text Arial |
+| `fonts.heading`, `fonts.body` | string | From the approved list. v1: `Manrope`. |
 | `firm.display_name` | string | Used in headers and file names |
-| `firm.contact_lines` | string[] | Broker team for the OM and BOV contact pages, one line each ("Jane Doe, Senior Managing Director · jane@firm.com · 602 555 0100") |
 | `disclaimer` | string | Client-owned text for the IC memo footer, printed verbatim |
 | `defaults.ic_memo.layout` | `editorial` \| `cards` | IC memo page layout; editorial is the default |
-| `om_disclaimer` | string | Client-owned confidentiality and disclaimer text for the OM's last page, printed verbatim |
-| `defaults.<doc>.format` | IC memo: `pdf` \| `docx` \| `pdf+docx`. Data blocks: `pptx` \| `png` \| `pptx+png`. OM: `pptx` \| `pdf` \| `pptx+pdf`. Or null | Null means ask every run. `<doc>` is `ic_memo`, `data_blocks` or `om` |
+| `defaults.ic_memo.format` | `pdf` \| `docx` \| `pdf+docx` \| null | Null means ask every run |
 | `defaults.ic_memo.variant` | `one_pager` \| `full` | |
 | `defaults.ic_memo.waterfall` | `auto` \| `always` \| `never` | Equity waterfall on the IC memo. `auto` shows it when the model has one |
 | `updated_at` | date | |
 
 ## What the client can and can't change
 
-- **Can:** logo, the three brand colors, font pair from the approved list, firm name and contacts, disclaimer, default formats.
+- **Can:** logo, the three brand colors, font pair from the approved list, firm name, disclaimer, default formats.
 - **Can't:** layout, type scale, neutral colors, table design, number formats. Those keep every output looking finished.
 
 ## Color roles to show the user
 
 When asking for brand colors, list them by role so the user knows where each appears:
 
-| Role | IC memo | Data blocks | OM |
-|---|---|---|---|
-| **Primary** | Wordmark, NOI bars, base-case cell | Main chart series and the subject property in comparison charts | Section numbers, highlight numbers, the "Offering" label, plus the data blocks' uses |
-| **Accent** | Heading markers and rules | Second chart series, the short rule under each snapshot figure | The data blocks' uses |
-| **Accent tint** | Pro forma column, highlighted rows | The NOI row (keep it very light) | The data blocks' uses |
+| Role | IC memo |
+|---|---|
+| **Primary** | Wordmark, NOI bars, base-case cell |
+| **Accent** | Heading markers and rules |
+| **Accent tint** | Pro forma column, highlighted rows |
 
 The users can give colors as hex codes in chat; the agent writes them into `brand.json`.
 

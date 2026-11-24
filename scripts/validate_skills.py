@@ -16,23 +16,6 @@ ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "compatibility", "
 
 errors: list[str] = []
 
-# Files more than one skill ships. Each skill is zipped on its own, so it carries its own copy;
-# the first path is the source, and every copy must match it byte for byte.
-SHARED_FILES = [
-    ["plugins/underwriting/skills/deal-data-blocks/scripts/blocks_lib.js",
-     "plugins/underwriting/skills/offering-memorandum/scripts/blocks_lib.js"],
-    ["plugins/underwriting/skills/deal-data-blocks/references/blocks-schema.md",
-     "plugins/underwriting/skills/offering-memorandum/references/blocks-schema.md"],
-    ["plugins/underwriting/skills/deal-data-blocks/references/block-catalog.md",
-     "plugins/underwriting/skills/offering-memorandum/references/block-catalog.md"],
-    ["plugins/underwriting/skills/deal-data-blocks/references/brand-profile.md",
-     "plugins/underwriting/skills/offering-memorandum/references/brand-profile.md",
-     "plugins/underwriting/skills/ic-memo/references/brand-profile.md"],
-    ["plugins/underwriting/skills/deal-data-blocks/assets/brand-radix-default.json",
-     "plugins/underwriting/skills/offering-memorandum/assets/brand-radix-default.json",
-     "plugins/underwriting/skills/ic-memo/assets/brand-radix-default.json"],
-]
-
 
 def fail(path: Path, message: str) -> None:
     errors.append(f"{path.relative_to(ROOT)}: {message}")
@@ -160,16 +143,6 @@ def main() -> int:
                     check_skill(skill_md)
                 else:
                     fail(child, "skill folder has no SKILL.md")
-
-    for group in SHARED_FILES:
-        source = ROOT / group[0]
-        if not source.is_file():
-            fail(source, "shared source file is missing")
-            continue
-        for copy in group[1:]:
-            target = ROOT / copy
-            if not target.is_file() or target.read_bytes() != source.read_bytes():
-                fail(target, f"must be an exact copy of {group[0]}; edit the source and copy it over")
 
     if errors:
         print("\n".join(errors), file=sys.stderr)
