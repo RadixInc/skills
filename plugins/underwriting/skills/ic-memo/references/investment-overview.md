@@ -4,6 +4,8 @@ The paragraph at the top of the memo. It tells the committee what the opportunit
 
 The goal is that the analyst gets a usable overview by reading one proposed paragraph and making a brief correction or pointing you to a file, not by filling in a questionnaire.
 
+The investment thesis card next to the deal metrics carries the strategy and sized drivers ([investment-thesis.md](investment-thesis.md)). The overview tells the story around it; don't repeat the drivers word for word. Ask the thesis and overview questions together, in one round.
+
 ## 1. Decide how deep to go
 
 The depth depends on whether there's a business plan to explain.

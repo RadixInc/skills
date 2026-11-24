@@ -357,6 +357,15 @@ def run_gate(memo, der, shown):
     if any(memo.get(k) for k in ("proforma", "returns", "capital_stack", "sources_uses", "sensitivity", "hold_cash_flow")):
         check("Client model file is named", bool((src.get("client_model") or {}).get("file")))
 
+    th = memo.get("thesis") or {}
+    if th.get("pillars"):
+        check("Thesis: a strategy, 2 to 4 value drivers and what the plan depends on",
+              bool(th.get("strategy")) and 2 <= len(th["pillars"]) <= 4 and bool((th.get("dependency") or {}).get("text")))
+        unsourced = [pl.get("title", "?") for pl in th["pillars"] if not pl.get("sources")]
+        if (th.get("dependency") or {}).get("text") and not th["dependency"].get("sources"):
+            unsourced.append("dependency")
+        check("Thesis: every driver cites where it came from (model cells, a document or the analyst)", not unsourced, ", ".join(unsourced))
+
     comps = memo.get("comps") or {}
     if comps.get("rows"):
         check("Comps: each comp is named and dated, and the comp set's source is stated",
@@ -383,6 +392,8 @@ def run_gate(memo, der, shown):
         b = memo.get(key)
         if not b or (key == "deal_terms" and not is_num(b.get("price"))):
             placeholders.append(f"{label}. Source: client model.")
+    if not (memo.get("thesis") or {}).get("pillars"):
+        placeholders.append("Investment thesis. Source: client model, confirmed by the analyst.")
     if not (memo.get("commentary") or {}).get("text"):
         placeholders.append("Investment overview.")
     failed = [c for c in checks if not c["ok"]]
@@ -404,33 +415,6 @@ def font_face_css():
 
 def ph(label, source="client model"):
     return f'<div class="rx-alert"><b>Needs {esc(source)}</b><span>{esc(label)}</span></div>'
-
-
-def noi_chart(t12, years, noi, coc, bar, w=560, h=132):
-    """NOI by year from the model, with the T12 actual as the first, grey bar."""
-    cats = (["T12"] if is_num(t12) else []) + list(years)
-    vals = ([t12] if is_num(t12) else []) + list(noi)
-    if not vals or not all(is_num(v) for v in vals):
-        return ""
-    top, bottom, left, right = 16, 30, 4, 4
-    vmax = max(vals) * 1.08 or 1
-    slot = (w - left - right) / len(vals)
-    bw = slot * 0.54
-    base_y = h - bottom
-    out = [f'<svg class="chart" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="NOI by year">',
-           f'<line x1="{left}" x2="{w - right}" y1="{base_y}" y2="{base_y}" stroke="{NEUTRAL["rule_strong"]}" stroke-width="1"/>']
-    for i, (c, v) in enumerate(zip(cats, vals)):
-        x = left + slot * i + (slot - bw) / 2
-        bh = (v / vmax) * (base_y - top)
-        actual = is_num(t12) and i == 0
-        fill = NEUTRAL["hush"] if actual else bar
-        out.append(f'<rect x="{x:.1f}" y="{base_y - bh:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="2" fill="{fill}"/>')
-        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y - bh - 4:.1f}" text-anchor="middle" class="cv">{esc(fmt_compact(v))}</text>')
-        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y + 11:.1f}" text-anchor="middle" class="cx">{esc(c)}</text>')
-        sub = "actual" if actual else (fmt_ratio(coc[i - (1 if is_num(t12) else 0)]) + " CoC" if coc and is_num(coc[i - (1 if is_num(t12) else 0)]) else "")
-        out.append(f'<text x="{x + bw / 2:.1f}" y="{base_y + 22:.1f}" text-anchor="middle" class="cs">{esc(sub)}</text>')
-    out.append("</svg>")
-    return "".join(out)
 
 
 def build_html(memo, brand, der, S):
@@ -526,44 +510,26 @@ def build_html(memo, brand, der, S):
     ]
     metrics_html = f'<div class="mt-grid">{"".join(tiles)}</div>' if ret or is_num(terms.get("price")) else ph("IRR, multiple, cash-on-cash, price, going-in and exit cap")
 
-    # ----- NOI over the hold
-    if hcf.get("noi"):
-        years = hcf.get("years") or [f"Y{i + 1}" for i in range(len(hcf["noi"]))]
-        for v in hcf["noi"]:
-            S.money(v)
-        chart = noi_chart((act.get("noi") or {}).get("T12"), years, hcf["noi"], hcf.get("coc") or [], primary)
-        rows = []
-
-        def hrow(label, vals, f, cls=""):
-            return (f'<tr class="rx-rtbl__tr{cls}"><th scope="row" class="rx-rtbl__rowlabel">{esc(label)}</th>' +
-                    "".join(f'<td class="rx-rtbl__td rx-rtbl__td--num">{esc(f(v))}</td>' for v in vals) + "</tr>")
-        cm = lambda v: S.add(fmt_compact(v)) if is_num(v) else "-"
-        neg = lambda v: f"({S.add(fmt_compact(abs(v)))})" if is_num(v) and v else "-"
-        if hcf.get("egr"):
-            rows.append(hrow("EGR", hcf["egr"], cm))
-        if hcf.get("opex"):
-            rows.append(hrow("OpEx", hcf["opex"], neg))
-        if has_debt and hcf.get("debt_service"):
-            rows.append(hrow("Debt service", hcf["debt_service"], neg))
-        if any(is_num(v) and v for v in hcf.get("capex") or []):
-            rows.append(hrow("Capital expenditures", hcf["capex"], neg))
-        if hcf.get("net_cash_flow"):
-            for v in hcf["net_cash_flow"]:
-                S.money(v)
-            rows.append(hrow("Net cash flow", hcf["net_cash_flow"], cm, " rx-rtbl__tr--strong"))
-        if dscr:
-            rows.append(hrow("DSCR", hcf["dscr"], lambda v: S.add(fmt_mult(v))))
-        for v in hcf.get("coc") or []:
-            S.add(fmt_ratio(v))
-        head = "".join(f'<th class="rx-rtbl__th rx-rtbl__th--num">{esc(y)}</th>' for y in years)
-        legend = (f'<span class="rxt__pill"><span class="rxt__swatch" style="background:{NEUTRAL["hush"]}"></span>T12 actual</span>'
-                  f'<span class="rxt__pill"><span class="rxt__swatch" style="background:{primary}"></span>Pro forma</span>')
-        hold_html = (f'<div class="rxt__legend">{legend}</div>{chart}'
-                     f'<div class="rx-rtbl rx-rtbl--dense"><table class="rx-rtbl__table"><colgroup><col style="width:20%">' + "<col>" * len(years) +
-                     f'</colgroup><thead><tr><th class="rx-rtbl__th rx-rtbl__th--pinned">$ per year</th>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
-                     + ('<p class="rx-chart-note">No debt in the model, so net cash flow equals NOI.</p>' if not has_debt else ""))
+    # ----- investment thesis: the strategy and its value drivers, read from how the model is set up and
+    # confirmed by the analyst. Each driver is sized; the last line names what the plan depends on.
+    th = memo.get("thesis") or {}
+    if th.get("pillars"):
+        def track(text):
+            for tok in NUM_TOKEN.findall(text or ""):
+                S.add(tok.strip().rstrip(".,;:"))
+            return esc(text or "")
+        items = "".join(
+            f'<li class="th__item"><span class="th__num">{i}</span><div><p class="th__title">{track(pl.get("title"))}</p>'
+            f'<p class="th__text">{track(pl.get("text"))}</p></div></li>'
+            for i, pl in enumerate(th["pillars"][:4], 1))
+        dep = th.get("dependency") or {}
+        dep_html = (f'<div class="th__dep"><p class="th__dep-label">What the plan depends on</p><p class="th__text">{track(dep.get("text"))}</p></div>'
+                    if dep.get("text") else "")
+        strat = f'<p class="th__strategy">{track(th.get("strategy"))}</p>' if th.get("strategy") else ""
+        detail = f'<p class="th__detail">{track(th.get("strategy_detail"))}</p>' if th.get("strategy_detail") else ""
+        thesis_html = f'{strat}{detail}<ol class="th__list">{items}</ol>{dep_html}'
     else:
-        hold_html = ph("NOI, debt service, net cash flow and cash-on-cash by year")
+        thesis_html = ph("Strategy and value drivers, read from the model and confirmed by the analyst", "analyst confirmation")
 
     # ----- capitalization
     if su.get("uses"):
@@ -810,6 +776,15 @@ p {{ margin:0; }}
 .rx-chart-note {{ margin-top:4px; font-size:6.2pt; line-height:1.45; color:#717680; }}
 .rx-alert {{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid #fedf89; background:#fffaeb; border-radius:8px; color:#414651; }}
 .rx-alert b {{ font-size:6.4pt; font-weight:700; color:#b54708; }}
+.th__strategy {{ font-size:10.5pt; font-weight:700; color:{primary}; line-height:1.25; }}
+.th__detail {{ margin-top:2px; font-size:7pt; color:#414651; font-weight:500; }}
+.th__list {{ list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:7px; }}
+.th__item {{ display:flex; gap:8px; align-items:flex-start; }}
+.th__num {{ flex:none; width:15px; height:15px; border-radius:50%; background:{tint}; color:{primary}; font-size:6.6pt; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; }}
+.th__title {{ font-size:7.4pt; font-weight:700; color:#252b37; }}
+.th__text {{ font-size:7pt; line-height:1.42; color:#414651; }}
+.th__dep {{ margin-top:9px; padding:7px 9px; border-radius:8px; background:#f5f5fa; }}
+.th__dep-label {{ font-size:6.4pt; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#717680; margin-bottom:2px; }}
 .cmp .rx-rtbl__rowlabel {{ height:auto; padding:2px 6px; white-space:normal; line-height:1.25; }}
 .cmp__sub {{ display:block; font-size:5.8pt; font-weight:500; color:#a4a7ae; }}
 .foot {{ display:flex; justify-content:space-between; gap:16px; margin-top:9px; font-size:5.8pt; color:#a4a7ae; }}
@@ -831,7 +806,7 @@ p {{ margin:0; }}
 </header>
 <div class="grid g-a">
   <section class="card"><div class="card__head"><span class="card__title">Deal metrics</span></div>{metrics_html}</section>
-  <section class="card"><div class="card__head"><span class="card__title">NOI over the hold</span></div>{hold_html}</section>
+  <section class="card"><div class="card__head"><span class="card__title">Investment thesis</span></div>{thesis_html}</section>
 </div>
 <div class="grid g-b">
   <section class="card"><div class="card__head"><span class="card__title">Capitalization</span></div>{cap_html}</section>
@@ -949,6 +924,17 @@ def write_docx(memo, brand, der, docx_path):
     com = memo.get("commentary") or {}
     if com.get("text"):
         heading("Investment overview"); doc.add_paragraph(com["text"])
+
+    th = memo.get("thesis") or {}
+    if th.get("pillars"):
+        heading("Investment thesis")
+        p_ = doc.add_paragraph(); r_ = p_.add_run(th.get("strategy", "")); r_.bold = True
+        if th.get("strategy_detail"):
+            doc.add_paragraph(th["strategy_detail"])
+        for i, pl in enumerate(th["pillars"][:4], 1):
+            p_ = doc.add_paragraph(); r_ = p_.add_run(f"{i}. {pl.get('title', '')}. "); r_.bold = True; p_.add_run(pl.get("text", ""))
+        if (th.get("dependency") or {}).get("text"):
+            p_ = doc.add_paragraph(); r_ = p_.add_run("What the plan depends on: "); r_.bold = True; p_.add_run(th["dependency"]["text"])
 
     if ret:
         heading("Returns")
@@ -1105,6 +1091,15 @@ def run_summary(memo, status, checks, placeholders, flags, outputs):
         if not 60 <= words <= 170:
             lines.append(f"- Length: {words} words; aim for about 100 to 150.")
         lines += [f"- {s_.get('point', '')}: {s_.get('source', '')} ({s_.get('kind', 'unspecified')})" for s_ in com.get("sources") or []] or ["- No sources recorded."]
+    th = memo.get("thesis") or {}
+    if th.get("pillars"):
+        lines += ["", f"## Investment thesis ({th.get('status', 'draft')}): {th.get('strategy', '')}"]
+        lines += [f"- Model signal: {sg}" for sg in th.get("signals") or []]
+        for pl in th["pillars"] + ([dict(th["dependency"], title="Depends on")] if (th.get("dependency") or {}).get("text") else []):
+            src = "; ".join(f"{x.get('source', '')} ({x.get('kind', 'unspecified')})" for x in pl.get("sources") or []) or "no source recorded"
+            lines.append(f"- {pl.get('title', '')}: {src}")
+        if th.get("status") != "confirmed":
+            lines.append("- Not yet confirmed by the analyst.")
     lines += ["", "## Placeholders"] + ([f"- {p}" for p in placeholders] or ["- None"])
     lines += ["", "## Files"] + [f"- {o}" for o in outputs]
     return "\n".join(lines) + "\n"

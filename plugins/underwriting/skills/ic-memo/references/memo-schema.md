@@ -64,6 +64,12 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
                   "values": [[0.125]], "format": "pct", "base": {"row": "7 yrs", "col": "5.00%"}},
   "hold_cash_flow": {"years": ["Y1"], "egr": [0], "opex": [0], "noi": [0], "debt_service": [0], "capex": [0],
                      "net_cash_flow": [0], "coc": [0.087], "dscr": null},
+  "thesis": {"status": "draft", "strategy": "Value-add: interior renovation and lease-up",
+             "strategy_detail": "Renovate 400 of 555 units over 36 months and bring occupancy to 94% by Year 2.",
+             "signals": ["Input!G89:J105 units to be renovated: 400 across Years 1 to 3"],
+             "pillars": [{"title": "Interior renovations", "text": "400 units at $12,500 each ($5.0M) over 36 months.",
+                          "sources": [{"source": "Client model, Input!D89:D105", "kind": "model"}]}],
+             "dependency": {"text": "Most of the NOI growth depends on the $175 premium on all 400 units.", "sources": [{"source": "Client model", "kind": "inference"}]}},
   "comps": {"kind": "rent", "source": "How the comp set was chosen and how many qualified.",
             "subject": {"units": 0, "year_built": 0, "avg_sf": 0, "in_place_rent": 0, "occupied_pct": 0, "as_of": "YYYY-MM-DD"},
             "rows": [{"name": "", "city": "", "as_of": "YYYY-MM-DD", "units": 0, "year_built": null, "avg_sf": 0, "in_place_rent": 0, "occupied_pct": 0}],
@@ -84,6 +90,8 @@ The memo tells one story: **actuals** from Radix (T12, T3 and T1 annualized, ren
 - **`waterfall_option`**: `auto` (show the waterfall when the model has one; the default), `always` (show a placeholder when it doesn't) or `never`. Take it from the brand profile's `defaults.ic_memo.waterfall`.
 - **`waterfall`**: tiers with LP and GP splits, and returns by partner (`role` is `lp` or `gp`). Leave it `null` when the model has no waterfall. Every figure comes from the model's waterfall; never compute a split or promote.
 - **`strategy`** (Value add, Core plus, Lease-up) only when the user or the model states it.
+- **`thesis`** (see [investment-thesis.md](investment-thesis.md)): `strategy` is one specific line; `pillars` are 2 to 4 value drivers, each sized and with `sources` (`kind` `model`, `documented`, `analyst` or `inference`); `dependency` is what the plan rests on. `signals` lists the model cells the strategy was read from. `status` is `draft` or `confirmed`. Sources and signals print in the run summary, never on the memo. Leave `thesis` null for a placeholder.
+- **`hold_cash_flow`** isn't drawn on the one-pager anymore; it feeds the pre-send checks, the DSCR tile and the Word file.
 - **`comps`**: `kind` is `market` (Radix Market Comps, when the MCP has it) or `rent` (Radix rent comp set from the account's deals). Rows are each comp's rent roll totals as the server returns them; percents are percent numbers. `average` is optional and only from the comp set tool's averages. The page shows rent per SF, derived. Leave `comps` null for a placeholder.
 - **The one-pager prints the T12 and the Year 1 pro forma only.** Keep T3 and T1 in `actuals` anyway: the pre-send checks and the Word appendix use them.
 - **`commentary`** is the investment overview in the page head (see [investment-overview.md](investment-overview.md)): `text` of about 100 to 150 words with every figure as the page shows it; `status` `draft` or `approved` (keep an approved overview on reruns); `depth` `business_plan`, `stabilized` or `unknown`; `sources` lists where each point came from, `kind` one of `documented`, `model`, `third_party`, `inference`. Sources print in the run summary, never on the memo.
@@ -101,6 +109,7 @@ The renderer refuses to export (exit code 2) when:
 - required equity ≠ the equity in the capital stack
 - waterfall partner equity ≠ required equity, a partner's profit ≠ distributions - equity, partner profits ≠ levered deal profit, or a tier's splits don't add to 100%
 - the unit mix doesn't add to the deal's units, or snapshot occupancy ≠ the rent roll total
+- the thesis lacks a strategy, 2 to 4 drivers or a dependency, or a driver or the dependency cites no source
 - a comp has no name or data date, the comp set has no stated source, or the subject's comp row disagrees with rent roll occupancy
 - the rent roll date, the actual column windows, or (when any model block is used) the model file name is missing
 - the summary or a line note cites a figure that isn't printed on the page (years and bare whole numbers under 100 are ignored)

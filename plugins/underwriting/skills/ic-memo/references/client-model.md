@@ -53,3 +53,14 @@ Group mapping for `Property CF` lines: Potential Market Rent and Renovation Prem
 
 - **Required equity**: `Sources & Uses` "Equity" under sources at closing (in the Radix export, `Sources & Uses!C9`). This is the cash the buyer puts in, including closing costs; it is not the purchase price.
 - **Waterfall**: the Radix export keeps a `Waterfall` tab that is hidden when no partnership is set up. If it's hidden and empty, the deal has no waterfall: leave `waterfall` as `null`. When it's set up, read the tiers (hurdle, LP and GP split) and, for each partner, equity, total distributions, profit, IRR, multiple and the GP's promote. Other models usually have a "Waterfall" or "Partnership" tab with the same items.
+
+## Setup for the investment thesis
+
+The thesis is read from how the model is set up, not only from its outputs. In the Radix underwriting model export, on `Input`:
+
+- **Unit renovations** (rows 86 to 109): per floor plan, average renovation cost (`D`), rent bump after renovation (`E`), post-renovation market rent (`F`), units to be renovated by year (`G:J`); renovation downtime in days at `G107`.
+- **Capital expenditures**: upfront funding at `G41`, projected capex at `F42`, property-wide capex from row 200.
+- **Market rent growth**: rows 78 to 82.
+- **Vacancy and loss to lease** by year: rows 114 and 116, with renovation downtime and structural vacancy in rows 121 to 124.
+
+All zeros in the renovation block, zero capex and flat vacancy and rents mean the model has no business plan. See [investment-thesis.md](investment-thesis.md) for how these become the strategy and drivers.
