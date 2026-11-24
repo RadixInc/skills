@@ -1,6 +1,6 @@
 ---
 name: ic-memo
-description: Draft a branded one-page Investment Committee (IC) memo for a Radix deal as a PDF and/or Word file. It tells one story, from actuals (T12, T3 and T1 annualized operating statement and rent roll from Radix) to the pro forma and returns in the client's own model - headline IRR, multiple and cash-on-cash, capital stack, sources and uses, IRR sensitivity, actual-to-pro-forma operating statement, hold-period cash flow and rule-based risk flags. Every figure ties to its source, missing data is flagged rather than invented, and the numbers are reconciled before export. Use whenever a user asks for an IC memo, investment memo, committee memo, screening memo, approval memo, deal one-pager or "write this deal up for IC", even if they don't say "memo". Requires the Radix Underwriting MCP.
+description: Draft a branded one-page Investment Committee (IC) memo for a Radix deal as a PDF and/or Word file: a short investment overview, required equity and returns, an investment thesis read from how the client's model is set up and confirmed by the analyst, the T12 from Radix next to the Year 1 pro forma, IRR sensitivity, capitalization, unit mix by bed/bath and rent comps, with an optional LP/GP waterfall. Every figure ties to Radix or the client's model, missing data is flagged rather than invented, and the numbers are reconciled before export. Use whenever a user asks for an IC memo, investment memo, committee memo, screening memo, approval memo, deal one-pager or "write this deal up for IC", even if they don't say "memo". Requires the Radix Underwriting MCP and the client's model.
 ---
 
 # IC Memo
@@ -26,7 +26,7 @@ The page is one flat sheet: the title and overview, a stat strip of deal metrics
 
 - **Figures only come from sources**: a Radix tool, the client's model, or the user. Never estimate a figure or compute an IRR, loan amount, price or pro forma yourself.
 - **Server figures are reported as returned.** The renderer does the derived arithmetic (groups, cap rates, changes, per-unit figures) and labels it.
-- **Actual and pro forma stay separate.** Never adjust either side to make them agree. The memo shows both and the risk flags call out the gaps.
+- **Actual and pro forma stay separate.** Never adjust either side to make them agree. The memo shows both and the pre-send checks call out the gaps.
 - **Missing data stays visibly missing.** Leave a block `null` and the page shows a flagged placeholder.
 - **The investment overview is sourced, not invented.** Every claim comes from Radix, the model, a document, or the analyst, and every figure in it is printed on the page (the gate checks). Never build a thesis from a favorable pro forma alone; when the rationale is missing, write a factual overview.
 - **Ambiguous deal → ask.** If a deal name matches more than one deal, list them (name, city, units) and ask which one.

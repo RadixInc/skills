@@ -25,4 +25,4 @@ The overview doesn't need its own questions. It takes the strategy from the thes
 
 Example:
 
-> Tides on Wynn is a garden-style property in Las Vegas, bought all cash for a 7-year hold. The client's model has no business plan beyond holding the property as is, with no renovations or lease-up.
+> Harbor Point is a garden-style property in Phoenix, bought with agency debt for a 5-year hold. The plan is value-add: renovate most of the units and lease up the vacancy.
